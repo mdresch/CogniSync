@@ -1,0 +1,25 @@
+{
+  "name": "cogni-sync-services",
+  "private": true,
+  "workspaces": [
+    "atlassian-sync-service",
+    "cogni-sync-client",
+    "knowledge-graph-service",
+    "llm-rag-service"
+  ],
+  "jest": {
+    "projects": [
+      "<rootDir>/cogni-sync-client/tests"
+    ],
+    "testMatch": [
+      "<rootDir>/cogni-sync-client/tests/**/*.test.ts"
+    ],
+    "globals": {},
+    "moduleFileExtensions": ["ts", "js", "json", "node"],
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "testEnvironment": "node",
+    "rootDir": "."
+  }
+}

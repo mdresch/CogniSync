@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  knowledge-graph-service:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://cogni_sync:password@postgres:5432/knowledge_graph
+      - PORT=3001
+      - API_PREFIX=/api/v1
+      - CORS_ORIGIN=*
+      - TENANT_ISOLATION_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=cogni_sync
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=knowledge_graph
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cogni_sync -d knowledge_graph"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Redis for caching (future enhancement)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:

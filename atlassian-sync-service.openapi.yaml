@@ -1,0 +1,188 @@
+openapi: 3.0.3
+info:
+  title: Atlassian Sync Service API
+  version: 1.0.0
+  description: API for synchronizing Atlassian (Jira/Confluence) events and configurations.
+servers:
+  - url: http://localhost:3002
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                  service:
+                    type: string
+                  version:
+                    type: string
+  /api/status:
+    get:
+      summary: Service status and statistics
+      responses:
+        '200':
+          description: Service status and statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                  database:
+                    type: string
+                  statistics:
+                    type: object
+  /webhooks/{configId}:
+    post:
+      summary: Receive Atlassian webhook
+      parameters:
+        - in: path
+          name: configId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed successfully
+        '422':
+          description: Webhook processing failed
+  /api/configurations:
+    get:
+      summary: List sync configurations
+      parameters:
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+        - in: query
+          name: source
+          schema:
+            type: string
+        - in: query
+          name: enabled
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of configurations
+    post:
+      summary: Create new sync configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Configuration created
+  /api/configurations/{id}:
+    put:
+      summary: Update sync configuration
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Configuration updated
+    delete:
+      summary: Delete sync configuration
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Configuration deleted
+  /api/events:
+    get:
+      summary: List sync events
+      parameters:
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+        - in: query
+          name: source
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: startDate
+          schema:
+            type: string
+        - in: query
+          name: endDate
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of sync events
+  /api/events/{id}:
+    get:
+      summary: Get sync event details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sync event details
+  /api/events/{id}/retry:
+    post:
+      summary: Retry failed sync event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event retry initiated

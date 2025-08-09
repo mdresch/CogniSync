@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: Knowledge Graph Service API
+  version: 1.0.0
+  description: API for managing entities, relationships, and analytics in the knowledge graph.
+servers:
+  - url: http://localhost:3001
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+  /entities:
+    post:
+      summary: Create a new entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Entity created
+    get:
+      summary: Search entities
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: entityTypes
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of entities
+  /entities/{id}:
+    get:
+      summary: Get entity by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entity details
+    put:
+      summary: Update entity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Entity updated
+    delete:
+      summary: Delete entity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entity deleted
+  /entities/{id}/relationships:
+    get:
+      summary: Get entity relationships
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of relationships
+  /entities/{id}/neighborhood:
+    get:
+      summary: Get entity neighborhood
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: depth
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Neighborhood graph
+  /relationships:
+    post:
+      summary: Create a new relationship
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Relationship created
+  /relationships/{id}:
+    delete:
+      summary: Delete relationship
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Relationship deleted
+  /analytics:
+    get:
+      summary: Get graph analytics
+      responses:
+        '200':
+          description: Analytics data
+  /entities/bulk:
+    post:
+      summary: Bulk create entities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Bulk entities created
+  /relationships/bulk:
+    post:
+      summary: Bulk create relationships
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Bulk relationships created

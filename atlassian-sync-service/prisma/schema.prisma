@@ -1,0 +1,169 @@
+// Atlassian Sync Service Database Schema
+// This service stores sync events, configurations, and webhook processing history
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Sync event tracking - records all webhook events processed
+model SyncEvent {
+  id            String    @id @default(uuid())
+  type          String    // Event type: confluence_page_created, jira_issue_updated, etc.
+  source        String    // Source system: confluence, jira
+  timestamp     DateTime  @default(now())
+  actorId       String?   // User who triggered the event (Atlassian account ID)
+  entityId      String?   // Related entity ID from source system
+  externalId    String?   // ID in the external system (Confluence page ID, Jira issue ID)
+  changes       Json?     // What changed (webhook payload summary)
+  processingStatus String @default("pending") // pending, processing, completed, failed
+  errorMessage  String?   // Error details if processing failed
+  retryCount    Int       @default(0)
+  metadata      Json?     // Additional context and webhook data
+  tenantId      String    @default("default")
+  
+  // Configuration relationship
+  configId      String?   // Reference to sync configuration
+  config        SyncConfiguration? @relation(fields: [configId], references: [id])
+  
+  // Relationships
+  kgEntityId    String?   // ID of created/updated entity in Knowledge Graph Service
+  kgRelationshipIds Json? // Array of relationship IDs created in Knowledge Graph
+  webhookDeliveries WebhookDelivery[] // Related webhook deliveries
+  
+  @@index([timestamp])
+  @@index([type])
+  @@index([source])
+  @@index([actorId])
+  @@index([entityId])
+  @@index([externalId])
+  @@index([processingStatus])
+  @@index([tenantId])
+  @@index([configId])
+  @@map("sync_events")
+}
+
+// Sync configuration for different tenants and sources
+model SyncConfiguration {
+  id            String    @id @default(uuid())
+  name          String    // Human readable name
+  tenantId      String    // Tenant this config belongs to
+  source        String    // confluence, jira
+  enabled       Boolean   @default(true)
+  
+  // Webhook security
+  webhookSecret String    // Secret for webhook signature validation
+  webhookUrl    String?   // Optional: URL where webhooks should be sent
+  
+  // API configuration for Knowledge Graph Service
+  kgServiceUrl  String    @default("http://localhost:3001/api/v1") // Knowledge Graph Service URL
+  kgApiKey      String    // API key for Knowledge Graph Service
+  
+  // Mapping rules for transforming Atlassian data to Knowledge Graph entities
+  mappingRules  Json      // Entity types, relationship types, field mappings
+  
+  // Filters to control which events get processed
+  filters       Json?     // Spaces, projects, issue types, statuses, etc.
+  
+  // Processing settings
+  batchSize     Int       @default(10)    // Number of events to process in batch
+  retryLimit    Int       @default(3)     // Maximum retry attempts
+  retryDelay    Int       @default(30000) // Delay between retries in milliseconds
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  syncEvents    SyncEvent[]
+  
+  @@unique([tenantId, source, name])
+  @@index([tenantId])
+  @@index([source])
+  @@index([enabled])
+  @@map("sync_configurations")
+}
+
+// User mapping - maps Atlassian account IDs to Knowledge Graph person entities
+model UserMapping {
+  id                String   @id @default(uuid())
+  tenantId          String
+  atlassianAccountId String  // Atlassian account ID
+  atlassianEmail    String?  // Email from Atlassian
+  displayName       String   // Display name from Atlassian
+  kgEntityId        String?  // Corresponding entity ID in Knowledge Graph Service
+  
+  // User details from Atlassian
+  profile           Json?    // Full user profile data from Atlassian
+  lastSyncAt        DateTime @default(now())
+  isActive          Boolean  @default(true)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([tenantId, atlassianAccountId])
+  @@index([tenantId])
+  @@index([atlassianAccountId])
+  @@index([kgEntityId])
+  @@map("user_mappings")
+}
+
+// Entity mapping - tracks which Knowledge Graph entities correspond to Atlassian items
+model EntityMapping {
+  id            String   @id @default(uuid())
+  tenantId      String
+  source        String   // confluence, jira
+  externalId    String   // Confluence page ID, Jira issue ID/key
+  externalType  String   // page, issue, space, project
+  kgEntityId    String   // Knowledge Graph entity ID
+  
+  // Sync tracking
+  lastSyncAt    DateTime @default(now())
+  syncVersion   String?  // Version or timestamp from source system
+  isActive      Boolean  @default(true)
+  
+  // Metadata
+  externalData  Json?    // Cache of data from external system
+  mappingRules  Json?    // Rules used for this specific mapping
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId])
+  @@index([source])
+  @@index([kgEntityId])
+  @@index([externalId])
+  @@map("entity_mappings")
+}
+
+// Webhook delivery tracking
+model WebhookDelivery {
+  id            String   @id @default(uuid())
+  tenantId      String   @default("default")
+  source        String   // confluence, jira
+  webhookId     String?  // Webhook ID from source system
+  eventType     String   // Type of event
+  payload       Json     // Full webhook payload
+  signature     String?  // Webhook signature for verification
+  
+  // Processing
+  receivedAt    DateTime @default(now())
+  processedAt   DateTime?
+  status        String   @default("received") // received, validated, processing, completed, failed
+  errorMessage  String?
+  
+  // Related sync event
+  syncEventId   String?
+  syncEvent     SyncEvent? @relation(fields: [syncEventId], references: [id])
+  
+  @@index([tenantId])
+  @@index([source])
+  @@index([eventType])
+  @@index([status])
+  @@index([receivedAt])
+  @@map("webhook_deliveries")
+}

@@ -1,0 +1,349 @@
+// LLM/RAG Service Database Schema
+// This service handles queries, embeddings, and semantic search
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Query sessions and conversation history
+model QuerySession {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  sessionId     String?   // Optional for tracking multi-turn conversations
+  userId        String?   // Optional user identification
+  
+  // Query details
+  query         String    // Changed from originalQuery to match service
+  response      String?   // Added response field
+  processedQuery String?
+  intent        String?   // business, technical, project, requirements, status
+  complexity    String    @default("simple") // simple, moderate, complex
+  
+  // Context and metadata
+  context       Json?     // Query context and extracted entities
+  metadata      Json?     // Changed from queryMetadata to match service
+  
+  // Results and timing
+  resultsCount  Int       @default(0)
+  processingTime Int?     // Changed from responseTime and made Int for milliseconds
+  
+  // Status and tracking
+  status        String    @default("processing") // Changed default to processing
+  errorMessage  String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  queryResults  QueryResult[]
+  followUpQueries QuerySession[] @relation("SessionFollowUp")
+  parentQuery   QuerySession?  @relation("SessionFollowUp", fields: [parentQueryId], references: [id])
+  parentQueryId String?
+  
+  @@index([tenantId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([intent])
+  @@index([createdAt])
+  @@index([status])
+  @@map("query_sessions")
+}
+
+// Individual query results from various sources
+model QueryResult {
+  id            String    @id @default(uuid())
+  sessionId     String
+  session       QuerySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // Source and content
+  source        String    // confluence, jira, knowledge_graph, external
+  sourceId      String?   // ID in the source system
+  sourceUrl     String?   // URL to the source document/item
+  
+  // Content
+  title         String
+  content       String
+  excerpt       String?
+  
+  // Relevance and ranking
+  relevanceScore Float    @default(0.0)
+  semanticScore Float?   // Semantic similarity score
+  rankPosition  Int      // Position in results (1-based)
+  
+  // Metadata
+  metadata      Json?    // Source-specific metadata
+  lastModified  DateTime?
+  contentType   String?  // page, issue, entity, etc.
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([sessionId])
+  @@index([source])
+  @@index([relevanceScore])
+  @@index([rankPosition])
+  @@map("query_results")
+}
+
+// Documents for embedding processing
+model Document {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  
+  // Document metadata
+  title         String
+  content       String
+  source        String?   // confluence, jira, etc.
+  type          String    @default("document")
+  url           String?
+  
+  // Processing status
+  hasEmbeddings Boolean   @default(false)
+  lastProcessed DateTime?
+  
+  // Metadata and tags
+  metadata      Json?
+  tags          Json?
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  chunks        DocumentChunk[]
+  
+  @@index([tenantId])
+  @@index([source])
+  @@index([hasEmbeddings])
+  @@map("documents")
+}
+
+// Document chunks for embeddings
+model DocumentChunk {
+  id            String    @id @default(uuid())
+  documentId    String
+  tenantId      String    @default("default")
+  
+  // Chunk content
+  content       String
+  chunkIndex    Int
+  
+  // Embedding data
+  embedding     String    // JSON array of vector embeddings
+  
+  // Metadata
+  metadata      Json?
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  
+  // Relationships
+  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@index([tenantId])
+  @@index([documentId])
+  @@index([chunkIndex])
+  @@map("document_chunks")
+}
+
+// Analytics events for tracking
+model AnalyticsEvent {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  sessionId     String
+  
+  // Event details
+  eventType     String    // query_started, query_completed, query_failed, document_accessed
+  userId        String?
+  query         String?
+  documentId    String?
+  
+  // Metrics
+  processingTime Int?
+  errorCode     String?
+  
+  // Event metadata
+  metadata      Json?
+  timestamp     DateTime  @default(now())
+  
+  @@index([tenantId])
+  @@index([sessionId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("analytics_events")
+}
+
+// Document embeddings for semantic search
+model DocumentEmbedding {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  
+  // Source document information
+  sourceType    String    // confluence, jira, knowledge_graph
+  sourceId      String    // ID in the source system
+  sourceUrl     String?   // URL to the source document
+  
+  // Document content
+  title         String
+  content       String
+  contentHash   String    // Hash of content for change detection
+  
+  // Embedding data
+  embedding     String // JSON array of numbers (vector)
+  embeddingModel String   @default("text-embedding-ada-002")
+  embeddingDimensions Int @default(1536)
+  
+  // Metadata and categorization
+  metadata      Json?     // Document metadata
+  tags          Json?     // Array of tags for categorization
+  contentType   String?   // page, issue, comment, etc.
+  language      String    @default("en")
+  
+  // Status and tracking
+  isActive      Boolean   @default(true)
+  lastEmbedded  DateTime  @default(now())
+  lastModified  DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([tenantId, sourceType, sourceId])
+  @@index([tenantId])
+  @@index([sourceType])
+  @@index([sourceId])
+  @@index([contentHash])
+  @@index([isActive])
+  @@index([lastEmbedded])
+  @@map("document_embeddings")
+}
+
+// Semantic search index for fast vector lookups
+model SemanticIndex {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  
+  // Index configuration
+  indexName     String    // Name of the vector index (e.g., Pinecone index)
+  indexType     String    @default("pinecone") // pinecone, weaviate, etc.
+  
+  // Vector configuration
+  dimensions    Int       @default(1536)
+  metric        String    @default("cosine") // cosine, euclidean, dotproduct
+  
+  // Status and metadata
+  totalVectors  Int       @default(0)
+  isActive      Boolean   @default(true)
+  lastSync      DateTime?
+  
+  // Configuration
+  config        Json?     // Index-specific configuration
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([tenantId, indexName])
+  @@index([tenantId])
+  @@index([indexType])
+  @@index([isActive])
+  @@map("semantic_indexes")
+}
+
+// Query analytics and insights
+model QueryAnalytics {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  date          DateTime  @default(now())
+  
+  // Query statistics
+  totalQueries  Int       @default(0)
+  successfulQueries Int   @default(0)
+  failedQueries Int       @default(0)
+  
+  // Response time metrics
+  avgResponseTime Float?
+  minResponseTime Float?
+  maxResponseTime Float?
+  
+  // Intent distribution
+  businessQueries    Int @default(0)
+  technicalQueries   Int @default(0)
+  projectQueries     Int @default(0)
+  requirementsQueries Int @default(0)
+  statusQueries      Int @default(0)
+  
+  // Source distribution
+  confluenceResults Int @default(0)
+  jiraResults      Int @default(0)
+  kgResults        Int @default(0)
+  externalResults  Int @default(0)
+  
+  // Quality metrics
+  avgRelevanceScore Float?
+  avgSemanticScore Float?
+  
+  // Usage patterns
+  uniqueUsers      Int   @default(0)
+  repeatUsers      Int   @default(0)
+  peakHour         Int?  // Hour of day with most queries
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@unique([tenantId, date])
+  @@index([tenantId])
+  @@index([date])
+  @@map("query_analytics")
+}
+
+// LLM service configuration
+model LLMConfiguration {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
+  name          String    // Configuration name
+  
+  // LLM Provider settings
+  provider      String    @default("openai") // openai, azure, anthropic, etc.
+  model         String    @default("gpt-3.5-turbo")
+  apiKey        String    // Encrypted API key
+  endpoint      String?   // Custom endpoint for Azure/private deployments
+  
+  // Model parameters
+  maxTokens     Int?      @default(2000)
+  temperature   Float?    @default(0.7)
+  systemPrompt  String?   // Custom system prompt for this tenant
+  
+  // Embedding settings
+  embeddingProvider String @default("openai")
+  embeddingModel    String @default("text-embedding-ada-002")
+  embeddingApiKey   String? // Separate key if different from LLM
+  
+  // Vector database settings
+  vectorProvider    String @default("pinecone")
+  vectorConfig      Json   // Provider-specific configuration
+  
+  // Processing settings
+  chunkSize         Int    @default(1000)
+  chunkOverlap      Int    @default(200)
+  
+  // Query processing settings
+  maxResults        Int    @default(20)
+  similarityThreshold Float @default(0.7)
+  rerankingEnabled  Boolean @default(true)
+  
+  // Status
+  isActive          Boolean @default(true)
+  lastTested        DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([provider])
+  @@index([isActive])
+  @@map("llm_configurations")
+}

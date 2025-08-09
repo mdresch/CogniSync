@@ -1,0 +1,291 @@
+openapi: 3.0.3
+info:
+  title: LLM-RAG Service API
+  version: 1.0.0
+  description: API for LLM-powered query, semantic search, embeddings, and analytics.
+servers:
+  - url: http://localhost:3003/api
+paths:
+  /query:
+    post:
+      summary: Process a single query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Query response
+  /query/search:
+    post:
+      summary: Semantic search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Search results
+  /query/analyze:
+    post:
+      summary: Query analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Query analysis
+  /query/suggestions:
+    post:
+      summary: Get search suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Suggestions
+  /query/history:
+    get:
+      summary: Query history
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Query history
+  /query/history/{sessionId}:
+    delete:
+      summary: Clear query history for a session
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: History cleared
+  /query/batch:
+    post:
+      summary: Batch search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Batch search results
+  /embeddings/create:
+    post:
+      summary: Create single embedding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Embedding created
+  /embeddings/documents:
+    post:
+      summary: Create/update document and generate embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Document embedding created
+  /embeddings/bulk:
+    post:
+      summary: Bulk create embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Bulk embeddings created
+  /embeddings/{id}:
+    get:
+      summary: Get embedding by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Embedding details
+    patch:
+      summary: Update embedding metadata
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Embedding updated
+    delete:
+      summary: Delete embedding
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Embedding deleted
+  /embeddings:
+    get:
+      summary: List embeddings
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: documentId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of embeddings
+  /embeddings/bulk-delete:
+    post:
+      summary: Bulk delete embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Bulk delete result
+  /embeddings/search:
+    post:
+      summary: Search similar embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Search results
+  /analytics/overview:
+    get:
+      summary: Analytics overview
+      responses:
+        '200':
+          description: Analytics overview
+  /analytics/queries:
+    get:
+      summary: Query analytics
+      responses:
+        '200':
+          description: Query analytics
+  /analytics/performance:
+    get:
+      summary: Performance metrics
+      responses:
+        '200':
+          description: Performance metrics
+  /analytics/engagement:
+    get:
+      summary: User engagement
+      responses:
+        '200':
+          description: User engagement
+  /analytics/export:
+    get:
+      summary: Export analytics data
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+        - in: query
+          name: endDate
+          schema:
+            type: string
+        - in: query
+          name: format
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exported analytics data
+  /analytics/realtime:
+    get:
+      summary: Real-time statistics
+      responses:
+        '200':
+          description: Real-time stats
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+  /health/detailed:
+    get:
+      summary: Detailed health check
+      responses:
+        '200':
+          description: Detailed health
+  /health/ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Ready
+  /health/live:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Alive

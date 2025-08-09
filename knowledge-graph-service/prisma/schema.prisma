@@ -1,0 +1,165 @@
+// CogniSync Knowledge Graph Service - Prisma Schema
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Core Knowledge Graph Models
+model KnowledgeEntity {
+  id          String               @id @default(uuid())
+  type        String               // EntityType enum (PERSON, DOCUMENT, TASK, API, etc.)
+  name        String
+  description String?
+  properties  Json                 // Flexible properties object
+  metadata    Json                 // EntityMetadata object
+  
+  // Multi-tenant support
+  tenantId    String?              // Optional tenant isolation
+  
+  // Relationships where this entity is the source
+  sourceRelationships KnowledgeRelationship[] @relation("SourceEntity")
+  
+  // Relationships where this entity is the target
+  targetRelationships KnowledgeRelationship[] @relation("TargetEntity")
+  
+  // Graph snapshots that include this entity
+  snapshots   GraphSnapshot[]      @relation("SnapshotEntities")
+  
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  
+  @@index([type])
+  @@index([name])
+  @@index([tenantId])
+  @@index([createdAt])
+  @@map("knowledge_entities")
+}
+
+model KnowledgeRelationship {
+  id              String          @id @default(uuid())
+  sourceEntity    KnowledgeEntity @relation("SourceEntity", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+  sourceEntityId  String
+  targetEntity    KnowledgeEntity @relation("TargetEntity", fields: [targetEntityId], references: [id], onDelete: Cascade)
+  targetEntityId  String
+  type            String          // RelationshipType enum
+  weight          Float           @default(1.0)
+  confidence      String          // ConfidenceLevel enum
+  properties      Json            // Flexible properties object
+  metadata        Json            // RelationshipMetadata object
+  
+  // Multi-tenant support
+  tenantId        String?         // Optional tenant isolation
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@index([sourceEntityId])
+  @@index([targetEntityId])
+  @@index([type])
+  @@index([weight])
+  @@index([tenantId])
+  @@unique([sourceEntityId, targetEntityId, type])
+  @@map("knowledge_relationships")
+}
+
+model GraphSnapshot {
+  id            String            @id @default(uuid())
+  name          String
+  description   String?
+  createdAt     DateTime          @default(now())
+  createdBy     String            // User ID
+  
+  // Multi-tenant support
+  tenantId      String?           // Optional tenant isolation
+  
+  // Many-to-many relationship with entities
+  entities      KnowledgeEntity[] @relation("SnapshotEntities")
+  
+  // Store analytics as JSON for flexibility
+  analytics     Json?             // GraphAnalytics object
+  
+  // Metadata about the snapshot
+  metadata      Json              // Export metadata
+  
+  @@index([createdAt])
+  @@index([createdBy])
+  @@index([tenantId])
+  @@map("graph_snapshots")
+}
+
+model GraphEvent {
+  id            String    @id @default(uuid())
+  type          String    // Event type enum
+  timestamp     DateTime  @default(now())
+  actorId       String?   // User who triggered the event
+  entityId      String?   // Related entity ID
+  relationshipId String?  // Related relationship ID
+  changes       Json?     // What changed
+  metadata      Json?     // Additional context
+  
+  // Multi-tenant support
+  tenantId      String?   // Optional tenant isolation
+  
+  @@index([timestamp])
+  @@index([type])
+  @@index([actorId])
+  @@index([entityId])
+  @@index([tenantId])
+  @@map("graph_events")
+}
+
+model GraphConfig {
+  id                    String    @id @default(uuid())
+  tenantId              String?   // Multi-tenant config support
+  configKey             String    // Configuration key
+  configValue           Json      // Configuration value
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@unique([tenantId, configKey])
+  @@index([tenantId])
+  @@index([configKey])
+  @@map("graph_configs")
+}
+
+// API Access and Rate Limiting for standalone service
+model ApiKey {
+  id            String    @id @default(uuid())
+  name          String    // Human-readable name
+  keyHash       String    @unique // Hashed version of the API key
+  tenantId      String    // Which tenant this key belongs to
+  permissions   Json      // Array of permissions
+  isActive      Boolean   @default(true)
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("api_keys")
+}
+
+model ApiUsage {
+  id            String    @id @default(uuid())
+  apiKeyId      String
+  endpoint      String    // Which endpoint was called
+  method        String    // HTTP method
+  statusCode    Int       // Response status
+  responseTime  Int       // Response time in milliseconds
+  requestSize   Int?      // Request size in bytes
+  responseSize  Int?      // Response size in bytes
+  timestamp     DateTime  @default(now())
+  
+  @@index([apiKeyId])
+  @@index([timestamp])
+  @@index([endpoint])
+  @@map("api_usage")
+}

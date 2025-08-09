@@ -1,0 +1,8 @@
+node_modules/
+atlassian-sync-service/node_modules
+cogni-sync-client/node_modules
+llm-rag-service/node_modules
+cogni-sync-client/.env
+knowledge-graph-service/.env
+atlassian-sync-service/.env
+llm-rag-service/.env
