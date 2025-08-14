@@ -15,11 +15,23 @@
       "<rootDir>/cogni-sync-client/tests/**/*.test.ts"
     ],
     "globals": {},
-    "moduleFileExtensions": ["ts", "js", "json", "node"],
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json",
+      "node"
+    ],
     "transform": {
       "^.+\\.ts$": "ts-jest"
     },
     "testEnvironment": "node",
     "rootDir": "."
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.0.5",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.1"
   }
 }

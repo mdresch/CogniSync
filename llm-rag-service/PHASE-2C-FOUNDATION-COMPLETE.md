@@ -132,6 +132,9 @@ Successfully extracted the LLM/RAG service from the monolithic API Management Pl
 - Token limit management and cost optimization
 - Temperature and parameter configuration
 - Fallback and error handling
+- **All LLM usage is now strictly routed through the `/api/llm/completion` endpoint.**
+- **Legacy direct LLM calls (including `/api/query` for LLM completions) are intentionally blocked and return a clear error.**
+- **This enforces a single, auditable LLM access point for all downstream services and clients.**
 
 ## Files Created
 
@@ -183,6 +186,7 @@ Successfully extracted the LLM/RAG service from the monolithic API Management Pl
 - ✅ Azure OpenAI configured for embeddings and chat
 - ✅ Pinecone integrated (query, health) with upsert on embedding creation
 - ✅ Reindex script added; index auto-create + bulk upsert working
+- ✅ **All LLM completions are now handled exclusively via `/api/llm/completion`; legacy `/api/query` LLM calls are blocked by design.**
 - 🟡 Analytics routes pending
 - 🟡 Production database (PostgreSQL) wiring pending
 
@@ -196,3 +200,4 @@ Successfully extracted the LLM/RAG service from the monolithic API Management Pl
 - Switch to PostgreSQL in production and validate migrations
 - Add delete/update sync for Pinecone vectors
 - Expand automated test coverage and docs
+- **Update all tests and client code to use `/api/llm/completion` for LLM queries; `/api/query` LLM tests will fail by design.**

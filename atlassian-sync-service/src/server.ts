@@ -16,7 +16,8 @@ import { AtlassianSyncService } from './services/atlassian-sync.service';
 const app: express.Application = express();
 const port = process.env.PORT || 3002;
 const prisma = new PrismaClient();
-const syncService = new AtlassianSyncService();
+const atlassianSyncService = new AtlassianSyncService();
+atlassianSyncService.startProcessing();
 
 // Middleware
 app.use(helmet());
@@ -78,35 +79,20 @@ app.post('/webhooks/:configId', async (req, res) => {
   try {
     const { configId } = req.params;
     const signature = req.get('X-Hub-Signature-256') || req.get('X-Atlassian-Webhook-Signature');
-    
-    console.log(`Received webhook for config ${configId}:`, {
-      eventType: req.body.eventType || req.body.webhookEvent,
-      timestamp: new Date().toISOString(),
+
+    // Enqueue the webhook event for async processing
+  await atlassianSyncService.enqueueWebhookEvent(configId, req.body);
+
+    res.status(202).json({
+      success: true,
+      message: 'Webhook event accepted for processing',
     });
-
-    // Process the webhook
-    const result = await syncService.processWebhookEvent(req.body, configId, signature);
-
-    if (result.success) {
-      res.status(200).json({
-        success: true,
-        message: 'Webhook processed successfully',
-        syncEventId: result.syncEventId,
-      });
-    } else {
-      console.error(`Webhook processing failed for config ${configId}:`, result.error);
-      res.status(422).json({
-        success: false,
-        error: result.error,
-        message: 'Webhook processing failed',
-      });
-    }
   } catch (error) {
-    console.error('Webhook endpoint error:', error);
+    console.error('Webhook enqueue error:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
-      message: 'Failed to process webhook',
+      message: 'Failed to enqueue webhook event',
     });
   }
 });
@@ -399,58 +385,37 @@ app.post('/api/events/:id/retry', async (req, res) => {
 
     const event = await prisma.syncEvent.findUnique({
       where: { id },
-      include: {
-        webhookDeliveries: {
-          orderBy: { receivedAt: 'desc' },
-          take: 1,
+    });
+
+    if (!event) {
+      return res.status(404).json({ success: false, error: 'Sync event not found' });
+    }
+
+    // We should only retry events that have failed permanently.
+    if (event.processingStatus !== 'DEAD_LETTER') {
+      return res.status(400).json({
+        success: false,
+        error: `Event is not in the dead-letter queue. Current status: ${event.processingStatus}`,
+      });
+    }
+
+    // PRIME DIRECTIVE: Reset the event's state. The worker will handle the rest.
+    await prisma.syncEvent.update({
+      where: { id },
+      data: {
+        processingStatus: 'PENDING', // Set back to PENDING
+        retryCount: 0, // Reset counter
+        logs: {
+          push: { timestamp: new Date(), status: 'REQUEUED', message: 'Manual retry triggered by user.' },
         },
       },
     });
 
-    if (!event) {
-      res.status(404).json({
-        success: false,
-        error: 'Sync event not found',
-      });
-      return;
-    }
-
-    if (event.processingStatus === 'completed') {
-      res.status(400).json({
-        success: false,
-        error: 'Event has already been processed successfully',
-      });
-      return;
-    }
-
-    // Get the configuration for this event
-    const config = await prisma.syncConfiguration.findFirst({
-      where: {
-        tenantId: event.tenantId,
-        source: event.source,
-      },
-    });
-
-    if (!config) {
-      res.status(400).json({
-        success: false,
-        error: 'No valid configuration found for this event',
-      });
-      return;
-    }
-
-    // Retry the event
-    const webhookPayload = event.webhookDeliveries[0]?.payload;
-    const result = await syncService.processWebhookEvent(webhookPayload, config.id);
-
     res.json({
       success: true,
-      data: {
-        eventId: id,
-        retryResult: result,
-      },
-      message: 'Event retry initiated',
+      message: 'Event has been re-queued for processing.',
     });
+
   } catch (error) {
     console.error('Error retrying sync event:', error);
     res.status(500).json({

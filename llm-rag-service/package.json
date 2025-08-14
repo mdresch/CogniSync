@@ -28,8 +28,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "embed": "tsx src/scripts/embed-documents.ts",
-  "query": "tsx src/scripts/test-query.ts",
-  "reindex:pinecone": "tsx src/scripts/reindex-pinecone.ts"
+    "query": "tsx src/scripts/test-query.ts",
+    "reindex:pinecone": "tsx src/scripts/reindex-pinecone.ts"
   },
   "keywords": [
     "llm",
@@ -45,38 +45,41 @@
     "pinecone"
   ],
   "dependencies": {
-    "@prisma/client": "^6.8.2",
-    "express": "^4.19.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5",
-    "compression": "^1.7.4",
-    "dotenv": "^16.3.1",
-    "axios": "^1.6.2",
-    "openai": "^4.104.0",
+    "@azure/service-bus": "^7.9.5",
     "@pinecone-database/pinecone": "^6.1.2",
-    "natural": "^6.12.0",
+    "axios": "^1.6.2",
+    "compression": "^1.7.4",
     "compromise": "^14.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "natural": "^6.12.0",
     "node-html-parser": "^6.1.12",
-    "uuid": "^9.0.1"
+    "openai": "^4.104.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/cors": "^2.8.18",
+    "@prisma/client": "^6.13.0",
     "@types/compression": "^1.7.5",
-    "@types/node": "^22.15.0",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.8",
+    "@types/node": "^22.15.0",
     "@types/uuid": "^9.0.8",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.1",
-    "tsx": "^4.6.2",
-    "typescript": "^5.3.3",
-    "prisma": "^6.8.2",
-    "rimraf": "^5.0.5",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "eslint": "^8.54.0",
-    "prettier": "^3.1.0"
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0",
+    "prisma": "^6.8.2",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.1.1",
+    "tsx": "^4.20.4",
+    "typescript": "^5.3.3"
   },
   "prisma": {
     "seed": "tsx prisma/seed-new.ts"
@@ -86,8 +89,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mdresch/cogni-sync-platform"
+    "url": "git+https://github.com/mdresch/cogni-sync-platform.git"
   },
   "author": "CogniSync Platform Team",
-  "license": "MIT"
+  "license": "MIT",
+  "directories": {
+    "test": "tests"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mdresch/cogni-sync-platform/issues"
+  },
+  "homepage": "https://github.com/mdresch/cogni-sync-platform#readme"
 }
