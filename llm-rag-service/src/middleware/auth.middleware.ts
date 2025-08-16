@@ -1,6 +1,15 @@
 
+// Enhanced authentication middleware for LLM-RAG Service
 import { Request, Response, NextFunction } from 'express';
+import { 
+  createAuthMiddleware, 
+  requireScopes, 
+  requireTenant,
+  requireServiceAuth,
+  AuthenticatedRequest 
+} from '../../../shared-security/service-auth.middleware';
 
+// Legacy interface for backward compatibility
 export interface AuthRequest extends Request {
   tenantId?: string;
   userId?: string;
@@ -8,6 +17,18 @@ export interface AuthRequest extends Request {
   scopes?: string[];
 }
 
+// Create authentication middleware instance
+const enhancedAuthMiddleware = createAuthMiddleware({
+  serviceId: 'llm-rag-service',
+  allowedServices: ['atlassian-sync-service', 'knowledge-graph-service'],
+  allowApiKeys: true,
+  allowServiceTokens: true,
+  allowUserTokens: true,
+  skipPaths: ['/health', '/metrics', '/api/health'],
+  developmentMode: process.env.NODE_ENV === 'development'
+});
+
+// Legacy authentication middleware for backward compatibility
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
   // Skip auth for health checks and development mode
   if (req.path === '/health' || process.env.DISABLE_AUTH === 'true') {
@@ -112,6 +133,23 @@ export const requireScope = (requiredScope: string) => {
   };
 };
 
+// Enhanced authentication middleware
+export const authenticate = enhancedAuthMiddleware;
+
+// Authorization middleware exports
+export { requireScopes, requireTenant as requireTenantAuth, requireServiceAuth };
+
+// Convenience middleware for common authorization patterns
+export const requireReadAccess = requireScopes(['read']);
+export const requireWriteAccess = requireScopes(['write']);
+export const requireAdminAccess = requireScopes(['admin']);
+
+// LLM-specific authorization
+export const requireLLMAccess = requireScopes(['llm', 'query']);
+export const requireEmbeddingAccess = requireScopes(['embedding', 'write']);
+export const requireAnalyticsAccess = requireScopes(['analytics', 'read']);
+
+// Legacy tenant requirement function
 export const requireTenant = (req: AuthRequest, res: Response, next: NextFunction) => {
   // Skip tenant requirement in development mode when auth is disabled
   if (process.env.DISABLE_AUTH === 'true') {
