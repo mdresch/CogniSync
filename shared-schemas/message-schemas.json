@@ -1,0 +1,308 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CogniSync Message Bus Schemas",
+  "description": "JSON Schema definitions for standardized message bus communication",
+  "definitions": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "iso8601": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "entityType": {
+      "type": "string",
+      "enum": [
+        "PERSON", "DOCUMENT", "TASK", "API", "ORGANIZATION", "PROJECT",
+        "CONCEPT", "TECHNOLOGY", "REQUIREMENT", "DECISION", "RISK", "MILESTONE"
+      ]
+    },
+    "relationshipType": {
+      "type": "string",
+      "enum": [
+        "AUTHORED_BY", "ASSIGNED_TO", "DEPENDS_ON", "REFERENCES", "IMPLEMENTS",
+        "MANAGES", "PARTICIPATES_IN", "RELATES_TO", "CONTAINS", "USES"
+      ]
+    },
+    "confidenceLevel": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    "importanceLevel": {
+      "type": "string",
+      "enum": ["MINOR", "MODERATE", "SIGNIFICANT", "CRITICAL"]
+    },
+    "extractionMethod": {
+      "type": "string",
+      "enum": ["MANUAL", "NLP", "LLM", "PATTERN_MATCHING", "API_INTEGRATION", "INFERENCE"]
+    },
+    "documentSource": {
+      "type": "string",
+      "enum": ["confluence", "jira", "knowledge_graph", "external"]
+    },
+    "queryIntent": {
+      "type": "string",
+      "enum": ["business", "technical", "project", "requirements", "status"]
+    },
+    "messageType": {
+      "type": "string",
+      "enum": [
+        "CREATE_ENTITY", "UPDATE_ENTITY", "DELETE_ENTITY",
+        "LINK_ENTITIES", "UNLINK_ENTITIES",
+        "INDEX_DOCUMENT", "REINDEX_DOCUMENT",
+        "QUERY_EXECUTED",
+        "HEALTH_CHECK", "SERVICE_STARTED", "SERVICE_STOPPED"
+      ]
+    },
+    "serviceName": {
+      "type": "string",
+      "enum": ["atlassian-sync-service", "knowledge-graph-service", "llm-rag-service"]
+    },
+    "messageSource": {
+      "type": "object",
+      "required": ["service", "version", "instanceId"],
+      "properties": {
+        "service": { "$ref": "#/definitions/serviceName" },
+        "version": { "type": "string" },
+        "instanceId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "messageCorrelation": {
+      "type": "object",
+      "required": ["correlationId", "causationId", "tenantId"],
+      "properties": {
+        "correlationId": { "$ref": "#/definitions/uuid" },
+        "causationId": { "$ref": "#/definitions/uuid" },
+        "tenantId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "entityMetadata": {
+      "type": "object",
+      "required": ["confidence", "importance", "source", "extractionMethod", "tags", "aliases"],
+      "properties": {
+        "confidence": { "$ref": "#/definitions/confidenceLevel" },
+        "importance": { "$ref": "#/definitions/importanceLevel" },
+        "source": { "type": "string", "minLength": 1 },
+        "extractionMethod": { "$ref": "#/definitions/extractionMethod" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "relationshipMetadata": {
+      "type": "object",
+      "required": ["source", "extractionMethod", "evidenceCount", "isInferred"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "extractionMethod": { "$ref": "#/definitions/extractionMethod" },
+        "evidenceCount": { "type": "number", "minimum": 0 },
+        "isInferred": { "type": "boolean" },
+        "context": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "documentMetadata": {
+      "type": "object",
+      "required": ["lastModified", "contentType", "tags"],
+      "properties": {
+        "lastModified": { "$ref": "#/definitions/iso8601" },
+        "author": { "type": "string" },
+        "contentType": { "type": "string", "minLength": 1 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "schemas": {
+    "messageEnvelope": {
+      "type": "object",
+      "required": ["messageId", "messageType", "version", "timestamp", "source", "correlation", "payload"],
+      "properties": {
+        "messageId": { "$ref": "#/definitions/uuid" },
+        "messageType": { "$ref": "#/definitions/messageType" },
+        "version": { "$ref": "#/definitions/semver" },
+        "timestamp": { "$ref": "#/definitions/iso8601" },
+        "source": { "$ref": "#/definitions/messageSource" },
+        "correlation": { "$ref": "#/definitions/messageCorrelation" },
+        "payload": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "createEntityPayload": {
+      "type": "object",
+      "required": ["entity"],
+      "properties": {
+        "entity": {
+          "type": "object",
+          "required": ["id", "type", "name", "properties", "metadata"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "type": { "$ref": "#/definitions/entityType" },
+            "name": { "type": "string", "minLength": 1 },
+            "description": { "type": "string" },
+            "properties": { "type": "object" },
+            "metadata": { "$ref": "#/definitions/entityMetadata" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "updateEntityPayload": {
+      "type": "object",
+      "required": ["entityId", "changes", "changeReason"],
+      "properties": {
+        "entityId": { "type": "string", "minLength": 1 },
+        "changes": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "description": { "type": "string" },
+            "properties": { "type": "object" },
+            "metadata": {
+              "type": "object",
+              "properties": {
+                "confidence": { "$ref": "#/definitions/confidenceLevel" },
+                "importance": { "$ref": "#/definitions/importanceLevel" },
+                "source": { "type": "string", "minLength": 1 },
+                "extractionMethod": { "$ref": "#/definitions/extractionMethod" },
+                "tags": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "uniqueItems": true
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        },
+        "changeReason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "deleteEntityPayload": {
+      "type": "object",
+      "required": ["entityId", "reason", "cascade"],
+      "properties": {
+        "entityId": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "cascade": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "linkEntitiesPayload": {
+      "type": "object",
+      "required": ["relationship"],
+      "properties": {
+        "relationship": {
+          "type": "object",
+          "required": ["sourceEntityId", "targetEntityId", "type", "confidence", "metadata"],
+          "properties": {
+            "sourceEntityId": { "type": "string", "minLength": 1 },
+            "targetEntityId": { "type": "string", "minLength": 1 },
+            "type": { "$ref": "#/definitions/relationshipType" },
+            "weight": { "type": "number", "minimum": 0 },
+            "confidence": { "$ref": "#/definitions/confidenceLevel" },
+            "properties": { "type": "object" },
+            "metadata": { "$ref": "#/definitions/relationshipMetadata" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "unlinkEntitiesPayload": {
+      "type": "object",
+      "required": ["relationshipId", "reason"],
+      "properties": {
+        "relationshipId": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "indexDocumentPayload": {
+      "type": "object",
+      "required": ["document"],
+      "properties": {
+        "document": {
+          "type": "object",
+          "required": ["id", "title", "content", "source", "metadata"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "title": { "type": "string", "minLength": 1 },
+            "content": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "format": "uri" },
+            "source": { "$ref": "#/definitions/documentSource" },
+            "metadata": { "$ref": "#/definitions/documentMetadata" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reindexDocumentPayload": {
+      "type": "object",
+      "required": ["documentId", "reason"],
+      "properties": {
+        "documentId": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "queryExecutedPayload": {
+      "type": "object",
+      "required": ["query", "user"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["id", "text", "intent", "results", "processingTime"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "intent": { "$ref": "#/definitions/queryIntent" },
+            "results": { "type": "number", "minimum": 0 },
+            "processingTime": { "type": "number", "minimum": 0 },
+            "satisfaction": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "user": {
+          "type": "object",
+          "required": ["tenantId"],
+          "properties": {
+            "id": { "type": "string" },
+            "tenantId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
