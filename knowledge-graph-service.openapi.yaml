@@ -2,9 +2,41 @@ openapi: 3.0.3
 info:
   title: Knowledge Graph Service API
   version: 1.0.0
-  description: API for managing entities, relationships, and analytics in the knowledge graph.
+  description: |
+    API for managing entities, relationships, and analytics in the knowledge graph.
+    
+    This service provides:
+    - Entity management (CRUD operations)
+    - Relationship management
+    - Graph analytics and insights
+    - Bulk operations for data ingestion
+    - Multi-tenant data isolation
+    
+    ## Authentication
+    All API endpoints (except health checks) require API key authentication via the `x-api-key` header.
+    
+    ## Tenant Isolation
+    All operations are scoped to the tenant associated with the API key.
+    
+    ## Rate Limiting
+    - 100 requests per 15 minutes per IP address
+    - Bulk operations have separate limits
+    
+    ## Error Handling
+    All errors follow a consistent format with `success`, `error`, `code`, and `timestamp` fields.
+  contact:
+    name: CogniSync Support
+    email: support@cognisync.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
-  - url: http://localhost:3001
+  - url: http://localhost:3001/api/v1
+    description: Development server
+  - url: https://api.cognisync.com/knowledge-graph/api/v1
+    description: Production server
+security:
+  - ApiKeyAuth: []
 paths:
   /health:
     get:
@@ -168,3 +200,532 @@ paths:
       responses:
         '201':
           description: Bulk relationships created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication and tenant identification
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          required:
+            - status
+            - database
+            - timestamp
+          properties:
+            status:
+              type: string
+              enum: [healthy, unhealthy]
+            database:
+              type: string
+              enum: [connected, disconnected]
+            timestamp:
+              type: string
+              format: date-time
+        timestamp:
+          type: string
+          format: date-time
+
+    Entity:
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - tenantId
+        - metadata
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the entity
+        type:
+          type: string
+          enum: [DOCUMENT, PERSON, PROJECT, ORGANIZATION, CONCEPT, TASK, EVENT, LOCATION, TECHNOLOGY]
+          description: Type of the entity
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Name or title of the entity
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Detailed description of the entity
+        tenantId:
+          type: string
+          description: Tenant identifier (automatically set from API key)
+        properties:
+          type: object
+          additionalProperties: true
+          description: Custom properties specific to the entity type
+        metadata:
+          $ref: '#/components/schemas/EntityMetadata'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    EntityMetadata:
+      type: object
+      required:
+        - confidence
+        - importance
+        - source
+        - extractionMethod
+        - tags
+        - aliases
+      properties:
+        confidence:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+          description: Confidence level in the entity data
+        importance:
+          type: string
+          enum: [MINIMAL, MODERATE, SIGNIFICANT, CRITICAL]
+          description: Importance level of the entity
+        source:
+          type: string
+          description: Source system or method that created the entity
+        extractionMethod:
+          type: string
+          enum: [MANUAL, AUTOMATED, ML_EXTRACTION, API_IMPORT]
+          description: Method used to extract or create the entity
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags associated with the entity
+        aliases:
+          type: array
+          items:
+            type: string
+          description: Alternative names for the entity
+        lastVerified:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the entity was last verified
+        externalIds:
+          type: object
+          additionalProperties:
+            type: string
+          description: External system identifiers
+
+    Relationship:
+      type: object
+      required:
+        - id
+        - sourceEntityId
+        - targetEntityId
+        - type
+        - tenantId
+        - confidence
+        - metadata
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the relationship
+        sourceEntityId:
+          type: string
+          format: uuid
+          description: ID of the source entity
+        targetEntityId:
+          type: string
+          format: uuid
+          description: ID of the target entity
+        type:
+          type: string
+          enum: [REFERENCES, CONTAINS, CREATED_BY, ASSIGNED_TO, DEPENDS_ON, RELATED_TO, PART_OF, MENTIONS, COLLABORATES_WITH]
+          description: Type of relationship
+        tenantId:
+          type: string
+          description: Tenant identifier (automatically set from API key)
+        confidence:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+          description: Confidence level in the relationship
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Strength of the relationship (0-1)
+        metadata:
+          $ref: '#/components/schemas/RelationshipMetadata'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    RelationshipMetadata:
+      type: object
+      required:
+        - source
+        - extractionMethod
+        - evidenceCount
+        - isInferred
+      properties:
+        source:
+          type: string
+          description: Source system or method that created the relationship
+        extractionMethod:
+          type: string
+          enum: [MANUAL, AUTOMATED, ML_EXTRACTION, INFERENCE]
+          description: Method used to extract or infer the relationship
+        evidenceCount:
+          type: integer
+          minimum: 0
+          description: Number of pieces of evidence supporting this relationship
+        isInferred:
+          type: boolean
+          description: Whether the relationship was inferred rather than explicit
+        lastVerified:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the relationship was last verified
+
+    GraphAnalytics:
+      type: object
+      required:
+        - entityCount
+        - relationshipCount
+        - entityTypes
+        - relationshipTypes
+        - topEntities
+        - graphMetrics
+        - timestamp
+      properties:
+        entityCount:
+          type: integer
+          minimum: 0
+          description: Total number of entities
+        relationshipCount:
+          type: integer
+          minimum: 0
+          description: Total number of relationships
+        entityTypes:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count of entities by type
+        relationshipTypes:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count of relationships by type
+        topEntities:
+          type: array
+          items:
+            type: object
+            properties:
+              entityId:
+                type: string
+                format: uuid
+              name:
+                type: string
+              connectionCount:
+                type: integer
+          description: Most connected entities
+        graphMetrics:
+          type: object
+          properties:
+            density:
+              type: number
+              description: Graph density (0-1)
+            averageDegree:
+              type: number
+              description: Average number of connections per entity
+            clusteringCoefficient:
+              type: number
+              description: Clustering coefficient
+        timestamp:
+          type: string
+          format: date-time
+
+    EntityNeighborhood:
+      type: object
+      required:
+        - centerEntity
+        - entities
+        - relationships
+        - depth
+      properties:
+        centerEntity:
+          $ref: '#/components/schemas/Entity'
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+          description: Neighboring entities
+        relationships:
+          type: array
+          items:
+            $ref: '#/components/schemas/Relationship'
+          description: Relationships in the neighborhood
+        depth:
+          type: integer
+          minimum: 1
+          description: Depth of the neighborhood search
+
+    BulkOperationResponse:
+      type: object
+      required:
+        - success
+        - data
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          required:
+            - created
+            - failed
+            - results
+            - errors
+          properties:
+            created:
+              type: integer
+              minimum: 0
+              description: Number of items successfully created
+            failed:
+              type: integer
+              minimum: 0
+              description: Number of items that failed
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                  success:
+                    type: boolean
+                    enum: [false]
+                  error:
+                    type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          description: Response data
+        message:
+          type: string
+          description: Success message
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+        - code
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        field:
+          type: string
+          description: Field that caused the error (for validation errors)
+        timestamp:
+          type: string
+          format: date-time
+
+    PaginatedResponse:
+      type: object
+      required:
+        - success
+        - data
+        - pagination
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: array
+          items: {}
+        pagination:
+          type: object
+          required:
+            - page
+            - limit
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+              minimum: 1
+            limit:
+              type: integer
+              minimum: 1
+            total:
+              type: integer
+              minimum: 0
+            totalPages:
+              type: integer
+              minimum: 0
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Validation failed"
+            code: "VALIDATION_ERROR"
+            field: "name"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Invalid API key"
+            code: "UNAUTHORIZED"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Insufficient permissions"
+            code: "FORBIDDEN"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Entity not found"
+            code: "NOT_FOUND"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    Conflict:
+      description: Conflict - duplicate entry
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Duplicate entry"
+            code: "DUPLICATE_ENTRY"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+            timestamp: "2024-01-15T10:30:00Z"
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Entities
+    description: Entity management operations
+  - name: Relationships
+    description: Relationship management operations
+  - name: Analytics
+    description: Graph analytics and insights
+  - name: Bulk Operations
+    description: Bulk data operations

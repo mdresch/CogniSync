@@ -2,9 +2,43 @@ openapi: 3.0.3
 info:
   title: LLM-RAG Service API
   version: 1.0.0
-  description: API for LLM-powered query, semantic search, embeddings, and analytics.
+  description: |
+    API for LLM-powered query processing, semantic search, embeddings, and analytics.
+    
+    This service provides:
+    - Intelligent query processing with RAG (Retrieval-Augmented Generation)
+    - Semantic search capabilities using vector embeddings
+    - Embedding generation and management
+    - Query analytics and insights
+    - Direct LLM completion endpoints
+    - Real-time WebSocket streaming for queries
+    
+    ## Authentication
+    All API endpoints (except health checks) require API key authentication via the `x-api-key` header.
+    
+    ## Rate Limiting
+    - 100 requests per 15 minutes per IP address in production
+    - 1000 requests per 15 minutes in development
+    - WebSocket connections have separate limits
+    
+    ## WebSocket Support
+    Real-time query streaming is available via WebSocket connection at `ws://localhost:3003`
+    
+    ## Error Handling
+    All errors follow a consistent format with `error`, `code`, and `timestamp` fields.
+  contact:
+    name: CogniSync Support
+    email: support@cognisync.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
   - url: http://localhost:3003/api
+    description: Development server
+  - url: https://api.cognisync.com/llm-rag/api
+    description: Production server
+security:
+  - ApiKeyAuth: []
 paths:
   /query:
     post:
@@ -286,6 +320,581 @@ paths:
   /health/live:
     get:
       summary: Liveness probe
+      description: Kubernetes liveness probe endpoint
+      security: []
+      tags:
+        - Health
       responses:
         '200':
-          description: Alive
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication and tenant identification
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - service
+        - version
+        - status
+        - timestamp
+      properties:
+        service:
+          type: string
+          description: Service name
+        version:
+          type: string
+          description: Service version
+        status:
+          type: string
+          enum: [operational, degraded, down]
+          description: Service status
+        timestamp:
+          type: string
+          format: date-time
+        endpoints:
+          type: array
+          items:
+            type: string
+          description: Available endpoints
+
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: The query text to process
+        context:
+          type: object
+          description: Additional context for the query
+          additionalProperties: true
+        sessionId:
+          type: string
+          description: Session identifier for tracking
+        userId:
+          type: string
+          description: User identifier
+        includeContext:
+          type: boolean
+          default: true
+          description: Whether to include enhanced context in response
+        maxSources:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Maximum number of source documents to return
+        requireAnalytics:
+          type: boolean
+          default: false
+          description: Whether to include detailed analytics
+        sources:
+          type: array
+          items:
+            type: string
+          description: Specific sources to search in
+        includeAnalysis:
+          type: boolean
+          default: true
+          description: Whether to include query analysis
+        includeSuggestions:
+          type: boolean
+          default: true
+          description: Whether to include query suggestions
+        maxResults:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: Maximum number of results to return
+
+    QueryResponse:
+      type: object
+      required:
+        - sessionId
+        - response
+        - processingTime
+        - sources
+      properties:
+        sessionId:
+          type: string
+          description: Session identifier
+        response:
+          type: string
+          description: Generated response text
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score for the response
+        processingTime:
+          type: integer
+          minimum: 0
+          description: Processing time in milliseconds
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceDocument'
+          description: Source documents used for the response
+        enhancedContext:
+          type: object
+          description: Enhanced context information
+          properties:
+            complexity:
+              type: string
+              enum: [low, medium, high]
+            intent:
+              type: string
+            entities:
+              type: array
+              items:
+                type: string
+        analysis:
+          type: object
+          description: Query analysis results
+          properties:
+            complexity:
+              type: string
+              enum: [low, medium, high]
+            intent:
+              type: string
+            entities:
+              type: array
+              items:
+                type: string
+            keywords:
+              type: array
+              items:
+                type: string
+        analytics:
+          type: object
+          description: Analytics information
+          properties:
+            enabled:
+              type: boolean
+        metrics:
+          type: object
+          description: Processing metrics
+          properties:
+            totalDocuments:
+              type: integer
+            searchTime:
+              type: integer
+            llmTokens:
+              type: integer
+        metadata:
+          type: object
+          description: Additional metadata
+          properties:
+            processingTime:
+              type: integer
+            timestamp:
+              type: string
+              format: date-time
+
+    SourceDocument:
+      type: object
+      required:
+        - id
+        - title
+        - content
+        - score
+      properties:
+        id:
+          type: string
+          description: Document identifier
+        title:
+          type: string
+          description: Document title
+        content:
+          type: string
+          description: Document content or excerpt
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Relevance score
+        metadata:
+          type: object
+          description: Document metadata
+          additionalProperties: true
+        source:
+          type: string
+          description: Source system or location
+        url:
+          type: string
+          format: uri
+          description: Document URL if available
+
+    EmbeddingRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: Text to generate embeddings for
+        model:
+          type: string
+          default: "text-embedding-ada-002"
+          description: Embedding model to use
+        metadata:
+          type: object
+          description: Additional metadata
+          additionalProperties: true
+
+    EmbeddingResponse:
+      type: object
+      required:
+        - id
+        - embedding
+        - metadata
+      properties:
+        id:
+          type: string
+          description: Embedding identifier
+        embedding:
+          type: array
+          items:
+            type: number
+          description: Vector embedding
+        metadata:
+          type: object
+          description: Embedding metadata
+          properties:
+            model:
+              type: string
+            dimensions:
+              type: integer
+            tokenCount:
+              type: integer
+            processingTime:
+              type: integer
+            timestamp:
+              type: string
+              format: date-time
+
+    BulkEmbeddingRequest:
+      type: object
+      required:
+        - texts
+      properties:
+        texts:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - text
+            properties:
+              id:
+                type: string
+                description: Unique identifier for the text
+              text:
+                type: string
+                minLength: 1
+                maxLength: 8000
+                description: Text to generate embeddings for
+              metadata:
+                type: object
+                additionalProperties: true
+          maxItems: 100
+          description: Array of texts to process
+        model:
+          type: string
+          default: "text-embedding-ada-002"
+          description: Embedding model to use
+
+    BulkEmbeddingResponse:
+      type: object
+      required:
+        - results
+        - metadata
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              success:
+                type: boolean
+              embedding:
+                type: array
+                items:
+                  type: number
+              error:
+                type: string
+        metadata:
+          type: object
+          properties:
+            total:
+              type: integer
+            successful:
+              type: integer
+            failed:
+              type: integer
+            processingTime:
+              type: integer
+            timestamp:
+              type: string
+              format: date-time
+
+    LLMCompletionRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: Prompt for the LLM
+        model:
+          type: string
+          default: "gpt-3.5-turbo"
+          description: LLM model to use
+        maxTokens:
+          type: integer
+          minimum: 1
+          maximum: 4000
+          default: 1000
+          description: Maximum tokens to generate
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+          description: Sampling temperature
+        systemPrompt:
+          type: string
+          description: System prompt to set context
+        stream:
+          type: boolean
+          default: false
+          description: Whether to stream the response
+
+    LLMCompletionResponse:
+      type: object
+      required:
+        - response
+        - metadata
+      properties:
+        response:
+          type: string
+          description: Generated response
+        metadata:
+          type: object
+          properties:
+            model:
+              type: string
+            tokensUsed:
+              type: integer
+            processingTime:
+              type: integer
+            timestamp:
+              type: string
+              format: date-time
+
+    AnalyticsOverview:
+      type: object
+      required:
+        - totalQueries
+        - totalEmbeddings
+        - averageResponseTime
+        - successRate
+        - topQueries
+        - timestamp
+      properties:
+        totalQueries:
+          type: integer
+          minimum: 0
+          description: Total number of queries processed
+        totalEmbeddings:
+          type: integer
+          minimum: 0
+          description: Total number of embeddings created
+        averageResponseTime:
+          type: number
+          minimum: 0
+          description: Average response time in milliseconds
+        successRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Success rate (0-1)
+        topQueries:
+          type: array
+          items:
+            type: object
+            properties:
+              query:
+                type: string
+              count:
+                type: integer
+              averageResponseTime:
+                type: number
+          description: Most frequent queries
+        errorRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Error rate (0-1)
+        timestamp:
+          type: string
+          format: date-time
+
+    QueryHistory:
+      type: object
+      required:
+        - sessions
+        - total
+        - hasMore
+      properties:
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              sessionId:
+                type: string
+              query:
+                type: string
+              response:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              processingTime:
+                type: integer
+              status:
+                type: string
+                enum: [completed, failed]
+        total:
+          type: integer
+          minimum: 0
+        hasMore:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+    SuccessResponse:
+      type: object
+      required:
+        - message
+        - timestamp
+      properties:
+        message:
+          type: string
+          description: Success message
+        data:
+          type: object
+          description: Response data
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Query is required and must be a non-empty string"
+            code: "INVALID_QUERY"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Invalid API key"
+            code: "UNAUTHORIZED"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Too many requests from this IP, please try again later"
+            code: "RATE_LIMIT_EXCEEDED"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Service temporarily unavailable"
+            code: "SERVICE_UNAVAILABLE"
+            timestamp: "2024-01-15T10:30:00Z"
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Query
+    description: Query processing and semantic search
+  - name: Embeddings
+    description: Embedding generation and management
+  - name: LLM
+    description: Direct LLM completion endpoints
+  - name: Analytics
+    description: Query analytics and insights
