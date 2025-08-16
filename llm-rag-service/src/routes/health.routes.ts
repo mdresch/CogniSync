@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error-handler.js';
+import { messageBusService } from '../services/message-bus.service';
 
 const router = Router();
 
@@ -53,6 +54,20 @@ router.get('/', asyncHandler(async (req: any, res: any) => {
       console.warn('Vector database health check failed:', error);
     }
 
+    // Test message bus
+    let messageBusStatus = 'up';
+    try {
+      const messageBusHealth = await messageBusService.getHealthStatus();
+      if (!messageBusHealth.serviceBus.connected && !messageBusHealth.redis.connected) {
+        messageBusStatus = 'down';
+      } else if (!messageBusHealth.serviceBus.connected || !messageBusHealth.redis.connected) {
+        messageBusStatus = 'degraded';
+      }
+    } catch (error) {
+      messageBusStatus = 'down';
+      console.warn('Message bus health check failed:', error);
+    }
+
     const responseTime = Date.now() - startTime;
     
     // Determine overall status
@@ -61,6 +76,7 @@ router.get('/', asyncHandler(async (req: any, res: any) => {
       llm: llmStatus,
       embeddings: embeddingStatus,
       vectorDB: vectorDbStatus,
+      messageBus: messageBusStatus,
     };
 
     const allUp = Object.values(services).every(status => status === 'up');
@@ -90,6 +106,7 @@ router.get('/', asyncHandler(async (req: any, res: any) => {
         llm: 'unknown',
         embeddings: 'unknown',
         vectorDB: 'unknown',
+        messageBus: 'unknown',
       },
       error: 'Service health check failed',
       metrics: {
@@ -217,6 +234,37 @@ router.get('/detailed', asyncHandler(async (req: any, res: any) => {
   } catch (error) {
     health.services.vectorDB = 'down';
     health.diagnostics.vectorDB = {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+    health.status = 'degraded';
+  }
+
+  // Message bus diagnostics
+  try {
+    const messageBusStart = Date.now();
+    const messageBusHealth = await messageBusService.getHealthStatus();
+    const messageBusResponseTime = Date.now() - messageBusStart;
+    
+    if (messageBusHealth.serviceBus.connected || messageBusHealth.redis.connected) {
+      health.services.messageBus = 'up';
+      health.diagnostics.messageBus = {
+        responseTime: messageBusResponseTime,
+        serviceBus: {
+          connected: messageBusHealth.serviceBus.connected,
+          error: messageBusHealth.serviceBus.error,
+        },
+        redis: {
+          connected: messageBusHealth.redis.connected,
+          error: messageBusHealth.redis.error,
+        },
+        isRunning: messageBusService.isServiceRunning(),
+      };
+    } else {
+      throw new Error('No message bus connections available');
+    }
+  } catch (error) {
+    health.services.messageBus = 'down';
+    health.diagnostics.messageBus = {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
     health.status = 'degraded';
