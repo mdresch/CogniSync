@@ -1,6 +1,9 @@
 // IndexingService integration
 import { IndexingService } from './services/indexing.service';
 let indexingService: IndexingService | undefined;
+
+// MessageBusService integration
+import { messageBusService } from './services/message-bus.service';
 import express from 'express';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -227,6 +230,14 @@ async function startServer() {
       } catch (err) {
         logger.error('Failed to start IndexingService: ' + (err instanceof Error ? err.message : String(err)));
       }
+
+      // Start MessageBusService
+      try {
+        await messageBusService.start();
+        logger.info('MessageBusService started successfully');
+      } catch (err) {
+        logger.error('Failed to start MessageBusService: ' + (err instanceof Error ? err.message : String(err)));
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -245,6 +256,14 @@ process.on('SIGTERM', async () => {
   logger.error('Error stopping IndexingService: ' + (err instanceof Error ? err.message : String(err)));
     }
   }
+  
+  try {
+    await messageBusService.stop();
+    logger.info('MessageBusService stopped successfully');
+  } catch (err) {
+    logger.error('Error stopping MessageBusService: ' + (err instanceof Error ? err.message : String(err)));
+  }
+  
   await prisma.$disconnect();
   process.exit(0);
 });
@@ -259,6 +278,14 @@ process.on('SIGINT', async () => {
   logger.error('Error stopping IndexingService: ' + (err instanceof Error ? err.message : String(err)));
     }
   }
+  
+  try {
+    await messageBusService.stop();
+    logger.info('MessageBusService stopped successfully');
+  } catch (err) {
+    logger.error('Error stopping MessageBusService: ' + (err instanceof Error ? err.message : String(err)));
+  }
+  
   await prisma.$disconnect();
   process.exit(0);
 });
@@ -273,6 +300,14 @@ process.on('uncaughtException', async (error) => {
   logger.error('Error stopping IndexingService: ' + (err instanceof Error ? err.message : String(err)));
     }
   }
+  
+  try {
+    await messageBusService.stop();
+    logger.info('MessageBusService stopped successfully');
+  } catch (err) {
+    logger.error('Error stopping MessageBusService: ' + (err instanceof Error ? err.message : String(err)));
+  }
+  
   await prisma.$disconnect();
   process.exit(1);
 });
@@ -287,6 +322,14 @@ process.on('unhandledRejection', async (reason, promise) => {
   logger.error('Error stopping IndexingService: ' + (err instanceof Error ? err.message : String(err)));
     }
   }
+  
+  try {
+    await messageBusService.stop();
+    logger.info('MessageBusService stopped successfully');
+  } catch (err) {
+    logger.error('Error stopping MessageBusService: ' + (err instanceof Error ? err.message : String(err)));
+  }
+  
   await prisma.$disconnect();
   process.exit(1);
 });
@@ -294,6 +337,11 @@ process.on('unhandledRejection', async (reason, promise) => {
 // Start the server
 startServer().catch(async (error) => {
   console.error('💥 Failed to start server:', error);
+  try {
+    await messageBusService.stop();
+  } catch (err) {
+    logger.error('Error stopping MessageBusService during startup failure: ' + (err instanceof Error ? err.message : String(err)));
+  }
   await prisma.$disconnect();
   process.exit(1);
 });
