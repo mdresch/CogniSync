@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cogni-sync-config
+  namespace: cogni-sync
+data:
+  # Environment
+  NODE_ENV: "production"
+  
+  # CORS
+  CORS_ORIGIN: "https://your-domain.com"
+  
+  # Pinecone
+  PINECONE_ENVIRONMENT: "your-pinecone-environment"
+  PINECONE_INDEX_NAME: "cognisync-production-embeddings"
+  
+  # LLM Configuration
+  LLM_MODEL: "gpt-4"
+  EMBEDDING_MODEL: "text-embedding-ada-002"
+  
+  # Service Configuration
+  TENANT_ISOLATION_ENABLED: "true"
+  DEFAULT_TENANT_ID: "default"
+  DISABLE_AUTH: "false"
+  
+  # Rate Limiting
+  RATE_LIMIT_WINDOW_MS: "900000"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  
+  # Logging
+  LOG_LEVEL: "info"
+  
+  # Performance
+  DB_CONNECTION_POOL_MIN: "2"
+  DB_CONNECTION_POOL_MAX: "10"
+  DB_TIMEOUT: "30000"

@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-rag
+  namespace: cogni-sync
+  labels:
+    app: llm-rag
+    service: llm-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llm-rag
+  template:
+    metadata:
+      labels:
+        app: llm-rag
+        service: llm-rag
+    spec:
+      containers:
+      - name: llm-rag
+        image: cognisync/llm-rag:latest
+        ports:
+        - containerPort: 3003
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3003"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: rag-database-url
+        - name: DISABLE_AUTH
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: DISABLE_AUTH
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: jwt-secret
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: openai-api-key
+        - name: OPENAI_ORG_ID
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: openai-org-id
+        - name: LLM_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: LLM_MODEL
+        - name: EMBEDDING_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: EMBEDDING_MODEL
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: pinecone-api-key
+        - name: PINECONE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: PINECONE_ENVIRONMENT
+        - name: PINECONE_INDEX_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: PINECONE_INDEX_NAME
+        - name: KNOWLEDGE_GRAPH_URL
+          value: "http://knowledge-graph:3001/api/v1"
+        - name: KNOWLEDGE_GRAPH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: kg-api-key
+        - name: CORS_ORIGIN
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: CORS_ORIGIN
+        - name: AZURE_SERVICE_BUS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: azure-service-bus-connection-string
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-rag
+  namespace: cogni-sync
+  labels:
+    app: llm-rag
+spec:
+  selector:
+    app: llm-rag
+  ports:
+  - port: 3003
+    targetPort: 3003
+    name: http
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: llm-rag-ingress
+  namespace: cogni-sync
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "50"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  tls:
+  - hosts:
+    - rag.your-domain.com
+    secretName: llm-rag-tls
+  rules:
+  - host: rag.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: llm-rag
+            port:
+              number: 3003

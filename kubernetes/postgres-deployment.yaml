@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: cogni-sync
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "cogni_sync"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: postgres-password
+        - name: POSTGRES_DB
+          value: "cogni_sync"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - cogni_sync
+            - -d
+            - cogni_sync
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - cogni_sync
+            - -d
+            - cogni_sync
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: init-scripts
+        configMap:
+          name: postgres-init-scripts
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: cogni-sync
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: cogni-sync
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: cogni-sync
+data:
+  init-databases.sql: |
+    -- Initialize databases for CogniSync services
+    CREATE DATABASE IF NOT EXISTS atlassian_sync;
+    CREATE DATABASE IF NOT EXISTS knowledge_graph;
+    CREATE DATABASE IF NOT EXISTS llm_rag;
+    
+    -- Grant permissions to the cogni_sync user
+    GRANT ALL PRIVILEGES ON DATABASE atlassian_sync TO cogni_sync;
+    GRANT ALL PRIVILEGES ON DATABASE knowledge_graph TO cogni_sync;
+    GRANT ALL PRIVILEGES ON DATABASE llm_rag TO cogni_sync;
