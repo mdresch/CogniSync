@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-graph
+  namespace: cogni-sync
+  labels:
+    app: knowledge-graph
+    service: knowledge-graph
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: knowledge-graph
+  template:
+    metadata:
+      labels:
+        app: knowledge-graph
+        service: knowledge-graph
+    spec:
+      containers:
+      - name: knowledge-graph
+        image: cognisync/knowledge-graph:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3001"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: kg-database-url
+        - name: API_PREFIX
+          value: "/api/v1"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: jwt-secret
+        - name: API_KEY_SALT
+          valueFrom:
+            secretKeyRef:
+              name: cogni-sync-secrets
+              key: api-key-salt
+        - name: CORS_ORIGIN
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: CORS_ORIGIN
+        - name: TENANT_ISOLATION_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: TENANT_ISOLATION_ENABLED
+        - name: DEFAULT_TENANT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: DEFAULT_TENANT_ID
+        - name: RATE_LIMIT_WINDOW_MS
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: RATE_LIMIT_WINDOW_MS
+        - name: RATE_LIMIT_MAX_REQUESTS
+          valueFrom:
+            configMapKeyRef:
+              name: cogni-sync-config
+              key: RATE_LIMIT_MAX_REQUESTS
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-graph
+  namespace: cogni-sync
+  labels:
+    app: knowledge-graph
+spec:
+  selector:
+    app: knowledge-graph
+  ports:
+  - port: 3001
+    targetPort: 3001
+    name: http
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: knowledge-graph-ingress
+  namespace: cogni-sync
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+  - hosts:
+    - kg.your-domain.com
+    secretName: knowledge-graph-tls
+  rules:
+  - host: kg.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: knowledge-graph
+            port:
+              number: 3001

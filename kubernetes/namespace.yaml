@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cogni-sync
+  labels:
+    name: cogni-sync
+    environment: production
