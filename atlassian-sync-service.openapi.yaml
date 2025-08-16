@@ -2,98 +2,389 @@ openapi: 3.0.3
 info:
   title: Atlassian Sync Service API
   version: 1.0.0
-  description: API for synchronizing Atlassian (Jira/Confluence) events and configurations.
+  description: |
+    API for synchronizing Atlassian (Jira/Confluence) events and configurations.
+    
+    This service handles:
+    - Webhook reception from Atlassian products
+    - Configuration management for sync operations
+    - Event processing and monitoring
+    - Integration with Knowledge Graph Service
+    
+    ## Authentication
+    All API endpoints (except health checks) require API key authentication via the `x-api-key` header.
+    
+    ## Rate Limiting
+    - 100 requests per minute per IP address
+    - Webhook endpoints have separate rate limits
+    
+    ## Error Handling
+    All errors follow a consistent format with `success`, `error`, and `timestamp` fields.
+  contact:
+    name: CogniSync Support
+    email: support@cognisync.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
   - url: http://localhost:3002
+    description: Development server
+  - url: https://api.cognisync.com/atlassian-sync
+    description: Production server
+security:
+  - ApiKeyAuth: []
 paths:
   /health:
     get:
       summary: Health check
+      description: Check if the service is running and healthy
+      security: []  # No authentication required
+      tags:
+        - Health
       responses:
         '200':
           description: Service is healthy
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  timestamp:
-                    type: string
-                  service:
-                    type: string
-                  version:
-                    type: string
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                timestamp: "2024-01-15T10:30:00Z"
+                service: "atlassian-sync-service"
+                version: "1.0.0"
   /api/status:
     get:
       summary: Service status and statistics
+      description: Get detailed service status including database connectivity and processing statistics
+      security: []  # No authentication required
+      tags:
+        - Health
       responses:
         '200':
           description: Service status and statistics
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  timestamp:
-                    type: string
-                  database:
-                    type: string
-                  statistics:
-                    type: object
+                $ref: '#/components/schemas/StatusResponse'
+              example:
+                status: "healthy"
+                timestamp: "2024-01-15T10:30:00Z"
+                database: "connected"
+                statistics:
+                  totalEvents: 1250
+                  completedEvents: 1180
+                  failedEvents: 45
+                  pendingEvents: 25
+                  activeConfigurations: 8
+                  userMappings: 156
+                  entityMappings: 892
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /webhooks/{configId}:
     post:
       summary: Receive Atlassian webhook
+      description: |
+        Receive and process webhook events from Atlassian products (Jira/Confluence).
+        Events are queued for asynchronous processing.
+      tags:
+        - Webhooks
       parameters:
         - in: path
           name: configId
           required: true
+          description: Configuration ID for the webhook
+          schema:
+            type: string
+            format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        - in: header
+          name: X-Hub-Signature-256
+          description: Webhook signature for verification (GitHub style)
+          schema:
+            type: string
+        - in: header
+          name: X-Atlassian-Webhook-Signature
+          description: Webhook signature for verification (Atlassian style)
           schema:
             type: string
       requestBody:
         required: true
+        description: Webhook payload from Atlassian
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/WebhookPayload'
+            examples:
+              jira_issue_created:
+                summary: Jira issue created event
+                value:
+                  webhookEvent: "jira:issue_created"
+                  issue_event_type_name: "issue_created"
+                  user:
+                    accountId: "5b10ac8d82e05b22cc7d4ef5"
+                    displayName: "John Doe"
+                  issue:
+                    id: "10000"
+                    key: "TEST-1"
+                    fields:
+                      summary: "Test issue"
+                      description: "This is a test issue"
+                      issuetype:
+                        name: "Bug"
+              confluence_page_created:
+                summary: Confluence page created event
+                value:
+                  eventType: "page_created"
+                  page:
+                    id: "123456"
+                    title: "New Page"
+                    space:
+                      key: "TEST"
+                  user:
+                    accountId: "5b10ac8d82e05b22cc7d4ef5"
+                    displayName: "Jane Smith"
       responses:
-        '200':
-          description: Webhook processed successfully
+        '202':
+          description: Webhook event accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                message: "Webhook event accepted for processing"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Configuration not found"
+                code: "CONFIG_NOT_FOUND"
+                timestamp: "2024-01-15T10:30:00Z"
         '422':
           description: Webhook processing failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Invalid webhook signature"
+                code: "INVALID_SIGNATURE"
+                timestamp: "2024-01-15T10:30:00Z"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/configurations:
     get:
       summary: List sync configurations
+      description: Retrieve a list of sync configurations with optional filtering
+      tags:
+        - Configurations
       parameters:
         - in: query
           name: tenantId
+          description: Filter by tenant ID
           schema:
             type: string
+          example: "tenant-123"
         - in: query
           name: source
+          description: Filter by source system
           schema:
             type: string
+            enum: [jira, confluence]
+          example: "jira"
         - in: query
           name: enabled
+          description: Filter by enabled status
           schema:
             type: boolean
+          example: true
       responses:
         '200':
           description: List of configurations
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                  - count
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncConfiguration'
+                  count:
+                    type: integer
+                    minimum: 0
+                    description: Number of configurations returned
+              example:
+                success: true
+                data:
+                  - id: "123e4567-e89b-12d3-a456-426614174000"
+                    name: "Jira Production Sync"
+                    tenantId: "tenant-123"
+                    source: "jira"
+                    enabled: true
+                    webhookUrl: "/webhooks/123e4567-e89b-12d3-a456-426614174000"
+                    createdAt: "2024-01-15T10:30:00Z"
+                    updatedAt: "2024-01-15T10:30:00Z"
+                count: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       summary: Create new sync configuration
+      description: Create a new sync configuration for Atlassian integration
+      tags:
+        - Configurations
       requestBody:
         required: true
+        description: Configuration data
         content:
           application/json:
             schema:
               type: object
+              required:
+                - name
+                - tenantId
+                - source
+                - webhookSecret
+                - kgApiKey
+                - mappingRules
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Human-readable name for the configuration
+                tenantId:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Tenant identifier
+                source:
+                  type: string
+                  enum: [jira, confluence]
+                  description: Source system type
+                webhookSecret:
+                  type: string
+                  minLength: 8
+                  description: Secret for webhook signature verification
+                webhookUrl:
+                  type: string
+                  format: uri
+                  description: Optional custom webhook URL
+                kgServiceUrl:
+                  type: string
+                  format: uri
+                  description: Knowledge Graph service URL (optional, uses default if not provided)
+                kgApiKey:
+                  type: string
+                  description: API key for Knowledge Graph service
+                mappingRules:
+                  type: object
+                  description: Rules for mapping Atlassian entities to knowledge graph entities
+                  additionalProperties: true
+                filters:
+                  type: object
+                  description: Filters for event processing
+                  additionalProperties: true
+                batchSize:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 10
+                  description: Number of events to process in a batch
+                retryLimit:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                  default: 3
+                  description: Maximum number of retry attempts
+                retryDelay:
+                  type: integer
+                  minimum: 1000
+                  maximum: 300000
+                  default: 30000
+                  description: Delay between retry attempts in milliseconds
+            example:
+              name: "Jira Production Sync"
+              tenantId: "tenant-123"
+              source: "jira"
+              webhookSecret: "super-secret-key"
+              kgApiKey: "kg-api-key-123"
+              mappingRules:
+                issue: "DOCUMENT"
+                project: "PROJECT"
+              filters:
+                issueTypes: ["Bug", "Story"]
+              batchSize: 10
+              retryLimit: 3
+              retryDelay: 30000
       responses:
         '201':
-          description: Configuration created
+          description: Configuration created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                  - message
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                      tenantId:
+                        type: string
+                      source:
+                        type: string
+                      webhookUrl:
+                        type: string
+                      enabled:
+                        type: boolean
+                  message:
+                    type: string
+              example:
+                success: true
+                data:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  name: "Jira Production Sync"
+                  tenantId: "tenant-123"
+                  source: "jira"
+                  webhookUrl: "/webhooks/123e4567-e89b-12d3-a456-426614174000"
+                  enabled: true
+                message: "Configuration created successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/configurations/{id}:
     put:
       summary: Update sync configuration
@@ -186,3 +477,370 @@ paths:
       responses:
         '200':
           description: Event retry initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - service
+        - version
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Health status of the service
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the health check
+        service:
+          type: string
+          description: Name of the service
+        version:
+          type: string
+          description: Version of the service
+
+    StatusResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - database
+        - statistics
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        database:
+          type: string
+          enum: [connected, disconnected]
+        statistics:
+          type: object
+          properties:
+            totalEvents:
+              type: integer
+              description: Total number of sync events
+            completedEvents:
+              type: integer
+              description: Number of completed events
+            failedEvents:
+              type: integer
+              description: Number of failed events
+            pendingEvents:
+              type: integer
+              description: Number of pending events
+            activeConfigurations:
+              type: integer
+              description: Number of active sync configurations
+            userMappings:
+              type: integer
+              description: Number of user mappings
+            entityMappings:
+              type: integer
+              description: Number of entity mappings
+
+    SyncConfiguration:
+      type: object
+      required:
+        - name
+        - tenantId
+        - source
+        - webhookSecret
+        - kgApiKey
+        - mappingRules
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the configuration
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable name for the configuration
+        tenantId:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Tenant identifier
+        source:
+          type: string
+          enum: [jira, confluence]
+          description: Source system type
+        enabled:
+          type: boolean
+          default: true
+          description: Whether the configuration is active
+        webhookUrl:
+          type: string
+          format: uri
+          readOnly: true
+          description: Generated webhook URL for this configuration
+        webhookSecret:
+          type: string
+          writeOnly: true
+          minLength: 8
+          description: Secret for webhook signature verification
+        kgServiceUrl:
+          type: string
+          format: uri
+          description: Knowledge Graph service URL
+        kgApiKey:
+          type: string
+          writeOnly: true
+          description: API key for Knowledge Graph service
+        mappingRules:
+          type: object
+          description: Rules for mapping Atlassian entities to knowledge graph entities
+          additionalProperties: true
+        filters:
+          type: object
+          description: Filters for event processing
+          additionalProperties: true
+        batchSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+          description: Number of events to process in a batch
+        retryLimit:
+          type: integer
+          minimum: 0
+          maximum: 10
+          default: 3
+          description: Maximum number of retry attempts
+        retryDelay:
+          type: integer
+          minimum: 1000
+          maximum: 300000
+          default: 30000
+          description: Delay between retry attempts in milliseconds
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    SyncEvent:
+      type: object
+      required:
+        - id
+        - type
+        - source
+        - timestamp
+        - processingStatus
+        - tenantId
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the event
+        type:
+          type: string
+          description: Type of the sync event
+        source:
+          type: string
+          enum: [jira, confluence]
+          description: Source system
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event occurred
+        actorId:
+          type: string
+          description: ID of the user who triggered the event
+        entityId:
+          type: string
+          description: ID of the entity in the source system
+        externalId:
+          type: string
+          description: External identifier
+        processingStatus:
+          type: string
+          enum: [pending, processing, completed, failed, dead_letter]
+          description: Current processing status
+        errorMessage:
+          type: string
+          nullable: true
+          description: Error message if processing failed
+        retryCount:
+          type: integer
+          minimum: 0
+          description: Number of retry attempts
+        tenantId:
+          type: string
+          description: Tenant identifier
+        kgEntityId:
+          type: string
+          nullable: true
+          description: Knowledge Graph entity ID if created
+        metadata:
+          type: object
+          description: Additional event metadata
+          additionalProperties: true
+
+    WebhookPayload:
+      type: object
+      description: Generic webhook payload from Atlassian
+      additionalProperties: true
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        message:
+          type: string
+          description: Success message
+        data:
+          type: object
+          description: Response data
+          additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+
+    PaginatedResponse:
+      type: object
+      required:
+        - success
+        - data
+        - pagination
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: array
+          items: {}
+        pagination:
+          type: object
+          required:
+            - total
+            - limit
+            - offset
+            - hasMore
+          properties:
+            total:
+              type: integer
+              minimum: 0
+              description: Total number of items
+            limit:
+              type: integer
+              minimum: 1
+              description: Number of items per page
+            offset:
+              type: integer
+              minimum: 0
+              description: Number of items to skip
+            hasMore:
+              type: boolean
+              description: Whether there are more items
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Missing required fields: name, tenantId"
+            code: "VALIDATION_ERROR"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Invalid API key"
+            code: "UNAUTHORIZED"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Configuration not found"
+            code: "NOT_FOUND"
+            timestamp: "2024-01-15T10:30:00Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+            timestamp: "2024-01-15T10:30:00Z"
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Webhooks
+    description: Webhook reception endpoints
+  - name: Configurations
+    description: Sync configuration management
+  - name: Events
+    description: Sync event monitoring and management
