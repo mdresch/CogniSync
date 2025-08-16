@@ -30,6 +30,8 @@ We followed a structured, three-phase approach to ensure a solid foundation for 
 
 **Goal:** To achieve absolute clarity on what each system must accomplish, its operational boundaries, and its desired level of autonomy.
 
+📋 **[Complete Requirements Document](PHASE-1-REQUIREMENTS.md)** - Detailed functional and non-functional requirements for all services.
+
 | Service / Project | Core Objectives | Key Constraints & Performance Targets | Desired Level of Autonomy |
 | :--- | :--- | :--- | :--- |
 | **LLM-RAG Service** | 1. Answer natural language questions using information strictly grounded in the Knowledge Graph.<br>2. **Enrich context** by analyzing queries to fetch and use structured metadata (e.g., time, authority, status) from the KG in the final prompt.<br>3. Provide a **cited answer** including the generated text, a list of source documents, and confidence scores. | **Accuracy:** Zero tolerance for uncited/fabricated info. <br>**Freshness:** KG changes reflected in < 15 mins. <br>**Performance:** Time-to-first-token < 1s; p99 latency < 3s. <br>**Concurrency:** Support 100+ concurrent queries. | **Query Understanding:** Autonomously rephrase and decompose complex user queries.<br>**Source Selection:** Autonomously filter data sources in the KG based on query context.<br>**Self-Correction:** Log user feedback (thumbs up/down) for offline analysis and periodic retraining. No initial requirement for online learning. |
