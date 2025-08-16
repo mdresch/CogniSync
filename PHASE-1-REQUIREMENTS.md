@@ -9,8 +9,9 @@ This document defines the functional and non-functional requirements for the thr
 1. [Atlassian Sync Service Requirements](#atlassian-sync-service-requirements)
 2. [Knowledge Graph Service Requirements](#knowledge-graph-service-requirements)
 3. [LLM-RAG Service Requirements](#llm-rag-service-requirements)
-4. [Cross-Service Requirements](#cross-service-requirements)
-5. [System-Wide Non-Functional Requirements](#system-wide-non-functional-requirements)
+4. [Autonomy Requirements](#autonomy-requirements)
+5. [Cross-Service Requirements](#cross-service-requirements)
+6. [System-Wide Non-Functional Requirements](#system-wide-non-functional-requirements)
 
 ---
 
@@ -325,6 +326,368 @@ The LLM-RAG Service provides AI-powered query processing, semantic search, and d
 
 ---
 
+## Autonomy Requirements
+
+### Overview
+
+This section defines the desired level of autonomy for each of the three core CogniSync microservices. These autonomy requirements guide architectural and implementation decisions to ensure each service operates with clearly defined levels of independence while maintaining system reliability, security, and performance.
+
+### Autonomy Level Definitions
+
+#### Level 1: Full Autonomy
+**Definition**: The service operates completely independently without external intervention for routine operations.
+- No human intervention required for normal operations
+- Self-contained decision making within defined boundaries
+- Automatic error recovery and self-healing capabilities
+- Independent resource management within allocated limits
+
+#### Level 2: Supervised Autonomy
+**Definition**: The service operates independently but reports to external systems for oversight and coordination.
+- Autonomous operation with external monitoring and guidance
+- Automatic escalation to external systems for complex decisions
+- Coordinated resource allocation and scaling decisions
+- External approval required for significant configuration changes
+
+#### Level 3: Guided Autonomy
+**Definition**: The service operates with external guidance for complex decisions and policy changes.
+- Human approval required for major operational changes
+- External coordination required for cross-service impacts
+- Manual intervention required for disaster recovery
+- Guided decision making for security and compliance policies
+
+---
+
+### Atlassian Sync Service Autonomy Requirements
+
+#### Service Autonomy Level: **Level 2 - Supervised Autonomy**
+
+The Atlassian Sync Service operates with supervised autonomy, providing autonomous event processing while coordinating with external systems for configuration management and resource allocation.
+
+#### Functional Autonomy Requirements
+
+**FA-AS-001: Autonomous Event Ingestion**
+- **Level**: Full Autonomy
+- **Requirement**: Autonomously accept, validate, and queue webhook events from Atlassian Cloud
+- **Capabilities**:
+  - Automatic webhook signature validation using HMAC-SHA256
+  - Immediate event acknowledgment (202 Accepted) without manual approval
+  - Concurrent webhook request handling with automatic load balancing
+  - Automatic rejection of invalid or unauthorized requests
+- **Dependencies**: None (self-contained validation and queuing)
+
+**FA-AS-002: Self-Healing Event Processing**
+- **Level**: Full Autonomy
+- **Requirement**: Autonomously process queued events with built-in error recovery
+- **Capabilities**:
+  - Automatic event processing with exponential backoff retry logic
+  - Autonomous Dead Letter Queue (DLQ) management for failed events
+  - Self-recovery after service restarts without data loss
+  - Automatic batch size optimization based on processing performance
+- **Dependencies**: Database persistence for state management
+
+**FA-AS-003: Autonomous Data Transformation**
+- **Level**: Full Autonomy
+- **Requirement**: Autonomously transform Atlassian payloads into Knowledge Graph entities
+- **Capabilities**:
+  - Automatic payload parsing and validation
+  - Dynamic entity and relationship creation based on predefined rules
+  - Graceful handling of schema variations and missing fields
+  - Automatic user mapping between Atlassian and Knowledge Graph systems
+- **Dependencies**: Predefined mapping rules and schemas
+
+**FA-AS-004: Supervised Configuration Management**
+- **Level**: Supervised Autonomy
+- **Requirement**: Manage sync configurations with external oversight
+- **Capabilities**:
+  - Automatic configuration loading and validation
+  - Dynamic processing behavior adjustment based on tenant settings
+  - Automatic configuration integrity checks before application
+  - External approval required for major configuration changes
+- **Dependencies**: Configuration API for external management
+
+**FA-AS-005: Supervised Service Integration**
+- **Level**: Supervised Autonomy
+- **Requirement**: Communicate with downstream services using standardized protocols
+- **Capabilities**:
+  - Automatic message publishing to message bus with retry logic
+  - Circuit breaker patterns for downstream service failures
+  - Automatic service discovery and endpoint resolution
+  - Coordinated resource allocation with external orchestration
+- **Dependencies**: Message bus infrastructure and service registry
+
+#### Non-Functional Autonomy Requirements
+
+**NFA-AS-001: Performance Autonomy**
+- **Level**: Supervised Autonomy
+- **Specifications**:
+  - Autonomous throughput optimization (1000+ events/minute)
+  - Automatic latency management (< 100ms acknowledgment)
+  - Dynamic batch size adjustment (1-50 events based on load)
+  - Supervised resource scaling decisions
+- **Monitoring**: Continuous performance metrics with external oversight
+
+**NFA-AS-002: Reliability Autonomy**
+- **Level**: Full Autonomy
+- **Specifications**:
+  - Autonomous availability management (99.9% uptime)
+  - Zero data loss guarantee for accepted events
+  - Automatic recovery within 30 seconds of failure
+  - Self-maintaining eventual consistency
+- **Dependencies**: Persistent storage and redundant infrastructure
+
+**NFA-AS-003: Security Autonomy**
+- **Level**: Full Autonomy
+- **Specifications**:
+  - Automatic API key validation and rate limiting
+  - Autonomous tenant-based access control
+  - Self-managing audit logging with automatic retention
+  - Automatic threat detection and response
+- **Dependencies**: Secure credential storage and audit infrastructure
+
+---
+
+### Knowledge Graph Service Autonomy Requirements
+
+#### Service Autonomy Level: **Level 1 - Full Autonomy**
+
+The Knowledge Graph Service operates with full autonomy for core graph operations while maintaining supervised autonomy for cross-service coordination and resource management.
+
+#### Functional Autonomy Requirements
+
+**FA-KG-001: Independent Service Operation**
+- **Level**: Full Autonomy
+- **Requirement**: Operate independently without external service dependencies
+- **Capabilities**:
+  - Self-contained service initialization and startup
+  - Independent core functionality (entity/relationship CRUD)
+  - Self-managed database schema and configuration
+  - Autonomous service health management
+- **Dependencies**: None for core operations
+
+**FA-KG-002: Self-Contained Data Management**
+- **Level**: Full Autonomy
+- **Requirement**: Manage complete data lifecycle independently
+- **Capabilities**:
+  - Autonomous entity and relationship data model management
+  - Self-managed data validation and integrity constraints
+  - Independent backup and recovery capabilities
+  - Automatic data migration and versioning
+- **Dependencies**: Dedicated database instance
+
+**FA-KG-003: Independent Authentication & Authorization**
+- **Level**: Full Autonomy
+- **Requirement**: Provide self-contained authentication and authorization
+- **Capabilities**:
+  - Autonomous API key-based authentication system
+  - Self-managed tenant-based authorization and data isolation
+  - Independent role-based access control (RBAC)
+  - Automatic API key lifecycle management
+- **Dependencies**: Secure credential storage
+
+**FA-KG-004: Autonomous Graph Analytics**
+- **Level**: Full Autonomy
+- **Requirement**: Perform graph analytics and computations independently
+- **Capabilities**:
+  - Self-contained graph algorithms and analytics
+  - Autonomous graph traversal and query optimization
+  - Independent data quality validation and reporting
+  - Automatic performance optimization for graph operations
+- **Dependencies**: None (self-contained algorithms)
+
+**FA-KG-005: Autonomous Event Processing**
+- **Level**: Supervised Autonomy
+- **Requirement**: Process events with coordination for cross-service consistency
+- **Capabilities**:
+  - Independent event ingestion and validation
+  - Autonomous event queue management and processing
+  - Coordinated event ordering for consistency
+  - External coordination for complex entity relationships
+- **Dependencies**: Message bus for event coordination
+
+#### Non-Functional Autonomy Requirements
+
+**NFA-KG-001: Performance Independence**
+- **Level**: Full Autonomy
+- **Specifications**:
+  - Independent query response optimization (< 200ms, 95th percentile)
+  - Autonomous throughput management (1000+ requests/minute)
+  - Self-contained caching and optimization strategies
+  - Independent resource allocation within limits
+- **Monitoring**: Self-monitoring without external dependencies
+
+**NFA-KG-002: Scalability Independence**
+- **Level**: Supervised Autonomy
+- **Specifications**:
+  - Autonomous horizontal scaling through stateless instances
+  - Self-managed database connection pooling
+  - Coordinated auto-scaling based on service-specific metrics
+  - External coordination for resource allocation
+- **Dependencies**: Container orchestration platform
+
+**NFA-KG-003: Reliability Independence**
+- **Level**: Full Autonomy
+- **Specifications**:
+  - Independent availability management (99.95% uptime)
+  - Autonomous fault isolation and recovery (MTTR < 5 minutes)
+  - Self-contained backup and disaster recovery
+  - Independent data durability guarantees (99.999%)
+- **Dependencies**: Redundant storage infrastructure
+
+---
+
+### LLM-RAG Service Autonomy Requirements
+
+#### Service Autonomy Level: **Level 2 - Supervised Autonomy**
+
+The LLM-RAG Service operates with supervised autonomy, providing autonomous AI-powered query processing while coordinating with external systems for model management, resource allocation, and cost optimization.
+
+#### Functional Autonomy Requirements
+
+**FA-LLM-001: Autonomous Query Processing**
+- **Level**: Full Autonomy
+- **Requirement**: Process natural language queries autonomously with contextual responses
+- **Capabilities**:
+  - Automatic query intent analysis and entity extraction
+  - Dynamic search strategy selection based on query type
+  - Autonomous document retrieval and ranking
+  - Self-generating coherent responses with source citations
+  - Automatic handling of ambiguous queries
+- **Dependencies**: Pre-trained models and vector database
+
+**FA-LLM-002: Autonomous Knowledge Base Management**
+- **Level**: Full Autonomy
+- **Requirement**: Manage document ingestion and embedding generation autonomously
+- **Capabilities**:
+  - Automatic document processing and chunking
+  - Self-generating embeddings for new content
+  - Autonomous duplicate content detection and handling
+  - Self-optimizing vector index performance
+  - Automatic content archival based on configurable policies
+- **Dependencies**: Vector database (Pinecone) and embedding models
+
+**FA-LLM-003: Autonomous Error Recovery**
+- **Level**: Full Autonomy
+- **Requirement**: Detect, diagnose, and recover from failures autonomously
+- **Capabilities**:
+  - Automatic service degradation detection
+  - Self-implementing circuit breaker patterns
+  - Autonomous failover between primary and backup systems
+  - Self-healing from transient failures with intelligent retry
+  - Automatic resource allocation adjustment
+- **Dependencies**: Backup systems and monitoring infrastructure
+
+**FA-LLM-004: Supervised Model Management**
+- **Level**: Supervised Autonomy
+- **Requirement**: Manage AI models with external coordination for cost and performance
+- **Capabilities**:
+  - Automatic model selection for different use cases
+  - Dynamic model parameter optimization
+  - Coordinated model versioning and updates
+  - External approval for model changes affecting cost or performance
+  - Automatic fallback mechanisms for model failures
+- **Dependencies**: External model management and approval systems
+
+**FA-LLM-005: Supervised Performance Optimization**
+- **Level**: Supervised Autonomy
+- **Requirement**: Optimize performance with external coordination for resource allocation
+- **Capabilities**:
+  - Autonomous query response time optimization
+  - Self-tuning caching strategies
+  - Coordinated scaling decisions based on demand patterns
+  - External coordination for significant resource allocation changes
+  - Automatic performance baseline maintenance
+- **Dependencies**: External resource management and monitoring systems
+
+#### Non-Functional Autonomy Requirements
+
+**NFA-LLM-001: Reliability and Availability**
+- **Level**: Full Autonomy
+- **Specifications**:
+  - Autonomous availability management (99.9% uptime)
+  - Self-healing capabilities (MTTR < 5 minutes)
+  - Automatic graceful degradation (80% functionality during failures)
+  - Independent fault tolerance mechanisms
+- **Dependencies**: Redundant infrastructure and backup systems
+
+**NFA-LLM-002: Performance and Scalability**
+- **Level**: Supervised Autonomy
+- **Specifications**:
+  - Autonomous response time optimization (< 2 seconds, 95th percentile)
+  - Self-managing concurrent query processing (1000+ queries)
+  - Coordinated resource scaling based on load patterns
+  - External coordination for significant performance changes
+- **Dependencies**: Auto-scaling infrastructure and load balancers
+
+**NFA-LLM-003: Cost and Resource Management**
+- **Level**: Supervised Autonomy
+- **Specifications**:
+  - Autonomous token usage optimization
+  - Self-managing cache efficiency and storage cleanup
+  - Coordinated cost monitoring and alerting
+  - External approval for significant cost-impacting changes
+- **Dependencies**: Cost monitoring and approval systems
+
+**NFA-LLM-004: Security and Privacy**
+- **Level**: Full Autonomy
+- **Specifications**:
+  - Autonomous authentication and authorization (100% API request validation)
+  - Self-managing data encryption and access control
+  - Automatic threat detection and response
+  - Independent audit trail maintenance
+- **Dependencies**: Secure credential storage and audit infrastructure
+
+---
+
+### Cross-Service Autonomy Coordination
+
+#### Coordination Requirements
+
+**CSA-001: Event-Driven Autonomy**
+- **Requirement**: Services coordinate autonomously through standardized event protocols
+- **Capabilities**:
+  - Autonomous event publishing and consumption
+  - Self-managing event ordering and deduplication
+  - Automatic event replay for recovery scenarios
+  - Coordinated eventual consistency maintenance
+
+**CSA-002: Supervised Resource Coordination**
+- **Requirement**: Services coordinate resource allocation through external orchestration
+- **Capabilities**:
+  - Autonomous resource usage monitoring and reporting
+  - Coordinated scaling decisions through external systems
+  - Self-managing resource optimization within allocated limits
+  - External coordination for cross-service resource conflicts
+
+**CSA-003: Autonomous Health Coordination**
+- **Requirement**: Services autonomously coordinate health status and dependency management
+- **Capabilities**:
+  - Self-reporting health status to external monitoring
+  - Autonomous dependency health checking
+  - Coordinated graceful degradation during service failures
+  - Automatic service discovery and endpoint management
+
+#### Autonomy Boundaries and Limitations
+
+**What Services CAN Do Autonomously:**
+- Process requests and events within their domain
+- Optimize performance within allocated resources
+- Recover from transient failures and errors
+- Manage internal data and state
+- Enforce security policies and access control
+- Generate alerts and notifications
+- Perform routine maintenance and cleanup
+
+**What Services CANNOT Do Autonomously:**
+- Modify core business logic or data schemas
+- Allocate additional infrastructure resources beyond limits
+- Change security policies affecting other services
+- Establish new external service integrations
+- Override tenant-specific configuration constraints
+- Make decisions affecting system-wide architecture
+- Modify cross-service communication protocols
+
+---
+
 ## Cross-Service Requirements
 
 ### Service Communication
@@ -458,6 +821,12 @@ The LLM-RAG Service provides AI-powered query processing, semantic search, and d
 - ✅ **Atlassian Sync Service**: 7 functional requirements covering webhook ingestion, security, processing, configuration, and audit
 - ✅ **Knowledge Graph Service**: 7 functional requirements covering entity management, relationships, querying, analytics, and multi-tenancy
 - ✅ **LLM-RAG Service**: 7 functional requirements covering query processing, semantic search, embeddings, RAG, streaming, and analytics
+
+### Autonomy Requirements Coverage
+- ✅ **Atlassian Sync Service**: Level 2 (Supervised Autonomy) with 5 functional and 3 non-functional autonomy requirements
+- ✅ **Knowledge Graph Service**: Level 1 (Full Autonomy) with 5 functional and 3 non-functional autonomy requirements  
+- ✅ **LLM-RAG Service**: Level 2 (Supervised Autonomy) with 5 functional and 4 non-functional autonomy requirements
+- ✅ **Cross-Service Coordination**: 3 coordination requirements and clear autonomy boundaries defined
 
 ### Non-Functional Requirements Coverage
 - ✅ **Performance Expectations**: Detailed latency, throughput, and scalability requirements for each service
