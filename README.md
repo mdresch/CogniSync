@@ -1,7 +1,16 @@
 
-# System Architecture and Autonomous Operation Blueprint
+# CogniSync Platform - System Architecture and Autonomous Operation Blueprint
 
 This document outlines the architectural principles and phased approach used to design, deploy, and maintain the autonomous systems within this monorepo. Our goal is to build resilient, scalable, and self-healing services that operate with a clearly defined level of autonomy.
+
+## 📋 Architecture Documentation
+
+- **[Modular Architecture Blueprint](MODULAR_ARCHITECTURE_BLUEPRINT.md)** - Comprehensive modular architecture design for scalability, maintainability, and adaptability
+- **[Module Interface Specifications](MODULE_INTERFACE_SPECIFICATIONS.md)** - Detailed interface contracts between all modules
+- **[Implementation Guide](MODULAR_ARCHITECTURE_IMPLEMENTATION_GUIDE.md)** - Step-by-step guide for implementing the modular architecture
+- **[Phase 2 Architecture Blueprint](PHASE-2-ARCHITECTURE-BLUEPRINT.md)** - Interface and protocol specifications
+- **[Inter-Service Communication](INTER_SERVICE_COMMUNICATION.md)** - Communication patterns and contracts
+- **[Message Queue Architecture](MESSAGE_QUEUE_ARCHITECTURE.md)** - Event-driven messaging specifications
 
 ---
 
