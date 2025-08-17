@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { EmbeddingService } from './EmbeddingService';
 import { SemanticSearchService } from './SemanticSearchService';
+import { AIProviderService } from './AIProviderService';
 
 // Type for direct LLM completion parameters
 export interface LLMCompletionParams {
@@ -21,36 +22,14 @@ export interface LLMCompletionParams {
 }
 
 export class LLMQueryService {
-  private openai: OpenAI;
+  private aiProviderService: AIProviderService;
   private prisma: PrismaClient;
   private embeddingService: EmbeddingService;
   private searchService: SemanticSearchService;
 
   constructor() {
-    console.log('Initializing LLMQueryService...');
-    if (process.env.AI_PROVIDER === 'azure') {
-      console.log('AI_PROVIDER=azure');
-      console.log('Azure OpenAI config:', {
-        apiKey: process.env.AZURE_OPENAI_API_KEY ? '***' : undefined,
-        baseURL: process.env.AZURE_OPENAI_ENDPOINT,
-        apiVersion: process.env.AZURE_OPENAI_API_VERSION,
-        chatDeployment: process.env.AZURE_OPENAI_CHAT_DEPLOYMENT,
-        embeddingDeployment: process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT
-      });
-      this.openai = new OpenAI({
-        apiKey: process.env.AZURE_OPENAI_API_KEY,
-        baseURL: process.env.AZURE_OPENAI_ENDPOINT, // endpoint root only
-        defaultQuery: { 'api-version': process.env.AZURE_OPENAI_API_VERSION },
-        defaultHeaders: {
-          'api-key': process.env.AZURE_OPENAI_API_KEY,
-        },
-      });
-    } else {
-      console.log('AI_PROVIDER=openai');
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY || '',
-      });
-    }
+    console.log('Initializing LLMQueryService with AI Provider Service...');
+    this.aiProviderService = new AIProviderService();
     this.prisma = new PrismaClient();
     this.embeddingService = new EmbeddingService();
     this.searchService = new SemanticSearchService();
@@ -59,24 +38,34 @@ export class LLMQueryService {
   /**
    * Direct LLM completion (used only by /api/llm/completion endpoint)
    */
-  public async llmCompletion(params: LLMCompletionParams): Promise<{ model: string; prompt: string; completion: string; usage?: any }> {
+  public async llmCompletion(params: LLMCompletionParams): Promise<{ model: string; prompt: string; completion: string; usage?: any; provider?: string; responseTime?: number; retryCount?: number }> {
     const { prompt, context = [], model, temperature = 0.7, max_tokens = 1000 } = params;
-    const modelName = model || (process.env.AI_PROVIDER === 'azure' ? process.env.AZURE_OPENAI_CHAT_DEPLOYMENT! : 'gpt-4');
-    const response = await this.openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'system', content: 'You are an AI assistant.' },
-        ...(Array.isArray(context) ? context : []),
-        { role: 'user', content: prompt }
-      ],
+    
+    const messages = [
+      { role: 'system', content: 'You are an AI assistant.' },
+      ...(Array.isArray(context) ? context : []),
+      { role: 'user', content: prompt }
+    ];
+
+    const response = await this.aiProviderService.createChatCompletion({
+      messages,
+      model,
       temperature,
-      max_tokens
+      maxTokens: max_tokens
     });
+
+    if (!response.success) {
+      throw new Error(`LLM completion failed: ${response.error}`);
+    }
+
     return {
-      model: modelName,
+      model: model || 'auto-selected',
       prompt,
-  completion: response.choices[0].message.content ?? '',
-      usage: response.usage
+      completion: response.data.choices[0].message.content ?? '',
+      usage: response.data.usage,
+      provider: response.provider,
+      responseTime: response.responseTime,
+      retryCount: response.retryCount
     };
   }
 

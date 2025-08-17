@@ -2,9 +2,10 @@ import OpenAI from 'openai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { PrismaClient } from '@prisma/client';
 import { Document, DocumentChunk, EmbeddingMetrics, ProcessingError } from '../types';
+import { AIProviderService } from './AIProviderService';
 
 export class EmbeddingService {
-  private openai: OpenAI;
+  private aiProviderService: AIProviderService;
   private prisma: PrismaClient;
   private pinecone?: Pinecone;
   private pineconeIndex?: ReturnType<Pinecone['Index']>;
@@ -12,24 +13,7 @@ export class EmbeddingService {
   private vectorIndexName?: string;
 
   constructor() {
-    // Configure for Azure OpenAI or regular OpenAI
-    const aiProvider = process.env.AI_PROVIDER || 'openai';
-    
-    if (aiProvider === 'azure') {
-      this.openai = new OpenAI({
-        apiKey: process.env.AZURE_OPENAI_API_KEY || '',
-        baseURL: `${process.env.AZURE_OPENAI_ENDPOINT}openai/deployments/${process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}`,
-        defaultQuery: { 'api-version': process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview' },
-        defaultHeaders: {
-          'api-key': process.env.AZURE_OPENAI_API_KEY || '',
-        },
-      });
-    } else {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY || '',
-      });
-    }
-    
+    this.aiProviderService = new AIProviderService();
     this.prisma = new PrismaClient();
 
     // Optional Vector DB (Pinecone) setup for upserts
@@ -523,16 +507,15 @@ export class EmbeddingService {
    */
   async createEmbedding(text: string): Promise<number[]> {
     try {
-      const model = process.env.AI_PROVIDER === 'azure' 
-        ? process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT!
-        : 'text-embedding-ada-002';
-        
-      const response = await this.openai.embeddings.create({
-        model: model,
-        input: text,
+      const response = await this.aiProviderService.createEmbedding({
+        input: text
       });
 
-      return response.data[0].embedding;
+      if (!response.success) {
+        throw new Error(`Embedding creation failed: ${response.error}`);
+      }
+
+      return response.data.data[0].embedding;
     } catch (error) {
       console.error('Error creating embedding:', error);
       throw error;

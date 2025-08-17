@@ -25,6 +25,7 @@ import embeddingRoutes from './routes/embedding.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import llmRoutes from './routes/llm.routes.js';
 import healthRoutes from './routes/health.routes.js';
+import aiProviderRoutes from './routes/ai-providers.routes';
 
 // Middleware
 import { errorHandler } from './middleware/error-handler.js';
@@ -132,9 +133,9 @@ app.use('/api', authMiddleware);
 // API routes
 app.use('/api/query', queryRoutes);
 app.use('/api/embeddings', embeddingRoutes);
-
 app.use('/api/llm', llmRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/ai-providers', aiProviderRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
