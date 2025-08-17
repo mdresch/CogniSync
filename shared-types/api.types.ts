@@ -3,6 +3,9 @@
  * 
  * This file defines the standardized types for REST API communication
  * across the CogniSync platform services.
+ * 
+ * @version 2.0.0
+ * @updated 2024-01-15 - Enhanced with comprehensive interface specifications
  */
 
 // ============================================================================
@@ -42,17 +45,33 @@ export interface PaginationInfo {
 // ============================================================================
 
 export type ErrorCode = 
+  // Common Error Codes
   | 'VALIDATION_ERROR'
   | 'NOT_FOUND'
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
-  | 'TENANT_ISOLATION_ERROR'
+  | 'TENANT_ISOLATION_VIOLATION'
   | 'RATE_LIMIT_EXCEEDED'
   | 'INTERNAL_ERROR'
   | 'SERVICE_UNAVAILABLE'
   | 'TIMEOUT'
   | 'CONFLICT'
-  | 'UNPROCESSABLE_ENTITY';
+  | 'UNPROCESSABLE_ENTITY'
+  // Atlassian Sync Service Specific
+  | 'WEBHOOK_SIGNATURE_INVALID'
+  | 'CONFIG_NOT_FOUND'
+  | 'MAPPING_ERROR'
+  | 'RETRY_LIMIT_EXCEEDED'
+  // Knowledge Graph Service Specific
+  | 'ENTITY_NOT_FOUND'
+  | 'RELATIONSHIP_EXISTS'
+  | 'CIRCULAR_DEPENDENCY'
+  | 'GRAPH_CONSTRAINT_VIOLATION'
+  // LLM-RAG Service Specific
+  | 'QUERY_TOO_LONG'
+  | 'EMBEDDING_FAILED'
+  | 'LLM_SERVICE_UNAVAILABLE'
+  | 'CONTEXT_LIMIT_EXCEEDED';
 
 // ============================================================================
 // Common Request/Response Types
