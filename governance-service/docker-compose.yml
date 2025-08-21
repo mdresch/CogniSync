@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  governance-service:
+    build: .
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - DATABASE_URL=postgresql://governance:governance123@postgres:5432/governance_db
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-in-production
+      - REDIS_URL=redis://redis:6379
+      - EMAIL_HOST=mailhog
+      - EMAIL_PORT=1025
+      - EMAIL_SECURE=false
+      - EMAIL_FROM=noreply@cogni-sync.com
+    depends_on:
+      - postgres
+      - redis
+      - mailhog
+    volumes:
+      - ./uploads:/app/uploads
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    networks:
+      - governance-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=governance
+      - POSTGRES_PASSWORD=governance123
+      - POSTGRES_DB=governance_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - governance-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - governance-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - governance-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  governance-network:
+    driver: bridge

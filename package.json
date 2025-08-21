@@ -5,7 +5,8 @@
     "atlassian-sync-service",
     "cogni-sync-client",
     "knowledge-graph-service",
-    "llm-rag-service"
+    "llm-rag-service",
+    "governance-service"
   ],
   "jest": {
     "projects": [
