@@ -1,0 +1,390 @@
+import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
+import { logger, logError } from '../utils/logger';
+import { config } from '../utils/config';
+
+export interface ApiError extends Error {
+  statusCode?: number;
+  code?: string;
+  details?: any;
+}
+
+export const errorHandler = (
+  error: ApiError,
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  // Log the error
+  logError('Request error', error, {
+    method: req.method,
+    url: req.url,
+    body: req.body,
+    params: req.params,
+    query: req.query,
+    headers: req.headers,
+    ip: req.ip,
+  });
+
+  // Default error response
+  let statusCode = error.statusCode || 500;
+  let errorCode = error.code || 'INTERNAL_ERROR';
+  let message = error.message || 'Internal server error';
+  let details = error.details;
+
+  // Handle specific error types
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    ({ statusCode, errorCode, message, details } = handlePrismaError(error));
+  } else if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+    statusCode = 500;
+    errorCode = 'DATABASE_ERROR';
+    message = 'Database operation failed';
+  } else if (error instanceof Prisma.PrismaClientRustPanicError) {
+    statusCode = 500;
+    errorCode = 'DATABASE_PANIC';
+    message = 'Database connection error';
+  } else if (error instanceof Prisma.PrismaClientInitializationError) {
+    statusCode = 500;
+    errorCode = 'DATABASE_INIT_ERROR';
+    message = 'Database initialization failed';
+  } else if (error instanceof Prisma.PrismaClientValidationError) {
+    statusCode = 400;
+    errorCode = 'VALIDATION_ERROR';
+    message = 'Invalid data provided';
+  }
+
+  // Handle validation errors
+  if (error.name === 'ValidationError') {
+    statusCode = 400;
+    errorCode = 'VALIDATION_ERROR';
+    message = 'Validation failed';
+    details = error.details;
+  }
+
+  // Handle JWT errors
+  if (error.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    errorCode = 'INVALID_TOKEN';
+    message = 'Invalid authentication token';
+  }
+
+  if (error.name === 'TokenExpiredError') {
+    statusCode = 401;
+    errorCode = 'TOKEN_EXPIRED';
+    message = 'Authentication token has expired';
+  }
+
+  // Handle multer errors (file upload)
+  if (error.name === 'MulterError') {
+    statusCode = 400;
+    errorCode = 'FILE_UPLOAD_ERROR';
+    
+    switch ((error as any).code) {
+      case 'LIMIT_FILE_SIZE':
+        message = 'File size too large';
+        break;
+      case 'LIMIT_FILE_COUNT':
+        message = 'Too many files';
+        break;
+      case 'LIMIT_UNEXPECTED_FILE':
+        message = 'Unexpected file field';
+        break;
+      default:
+        message = 'File upload error';
+    }
+  }
+
+  // Don't expose internal errors in production
+  if (config.nodeEnv === 'production' && statusCode === 500) {
+    message = 'Internal server error';
+    details = undefined;
+  }
+
+  // Send error response
+  res.status(statusCode).json({
+    success: false,
+    error: {
+      code: errorCode,
+      message,
+      ...(details && { details }),
+      ...(config.nodeEnv === 'development' && { stack: error.stack }),
+    },
+    timestamp: new Date().toISOString(),
+    path: req.url,
+    method: req.method,
+  });
+};
+
+function handlePrismaError(error: Prisma.PrismaClientKnownRequestError): {
+  statusCode: number;
+  errorCode: string;
+  message: string;
+  details?: any;
+} {
+  switch (error.code) {
+    case 'P2000':
+      return {
+        statusCode: 400,
+        errorCode: 'VALUE_TOO_LONG',
+        message: 'The provided value is too long for the field',
+        details: { field: error.meta?.target },
+      };
+
+    case 'P2001':
+      return {
+        statusCode: 404,
+        errorCode: 'RECORD_NOT_FOUND',
+        message: 'Record not found',
+        details: { condition: error.meta?.cause },
+      };
+
+    case 'P2002':
+      return {
+        statusCode: 409,
+        errorCode: 'UNIQUE_CONSTRAINT_VIOLATION',
+        message: 'A record with this value already exists',
+        details: { fields: error.meta?.target },
+      };
+
+    case 'P2003':
+      return {
+        statusCode: 400,
+        errorCode: 'FOREIGN_KEY_CONSTRAINT_VIOLATION',
+        message: 'Foreign key constraint failed',
+        details: { field: error.meta?.field_name },
+      };
+
+    case 'P2004':
+      return {
+        statusCode: 400,
+        errorCode: 'CONSTRAINT_VIOLATION',
+        message: 'A constraint failed on the database',
+        details: { constraint: error.meta?.constraint },
+      };
+
+    case 'P2005':
+      return {
+        statusCode: 400,
+        errorCode: 'INVALID_VALUE',
+        message: 'The value stored in the database is invalid for the field type',
+        details: { field: error.meta?.field_name, value: error.meta?.field_value },
+      };
+
+    case 'P2006':
+      return {
+        statusCode: 400,
+        errorCode: 'INVALID_VALUE',
+        message: 'The provided value is not valid',
+        details: { field: error.meta?.field_name },
+      };
+
+    case 'P2007':
+      return {
+        statusCode: 400,
+        errorCode: 'DATA_VALIDATION_ERROR',
+        message: 'Data validation error',
+        details: { errors: error.meta?.errors },
+      };
+
+    case 'P2008':
+      return {
+        statusCode: 400,
+        errorCode: 'QUERY_PARSING_ERROR',
+        message: 'Failed to parse the query',
+        details: { query: error.meta?.query_parsing_error },
+      };
+
+    case 'P2009':
+      return {
+        statusCode: 400,
+        errorCode: 'QUERY_VALIDATION_ERROR',
+        message: 'Failed to validate the query',
+        details: { query: error.meta?.query_validation_error },
+      };
+
+    case 'P2010':
+      return {
+        statusCode: 500,
+        errorCode: 'RAW_QUERY_FAILED',
+        message: 'Raw query failed',
+        details: { error: error.meta?.message },
+      };
+
+    case 'P2011':
+      return {
+        statusCode: 400,
+        errorCode: 'NULL_CONSTRAINT_VIOLATION',
+        message: 'Null constraint violation',
+        details: { constraint: error.meta?.constraint },
+      };
+
+    case 'P2012':
+      return {
+        statusCode: 400,
+        errorCode: 'MISSING_REQUIRED_VALUE',
+        message: 'Missing a required value',
+        details: { path: error.meta?.path },
+      };
+
+    case 'P2013':
+      return {
+        statusCode: 400,
+        errorCode: 'MISSING_REQUIRED_ARGUMENT',
+        message: 'Missing the required argument',
+        details: { argument: error.meta?.argument_name, field: error.meta?.field_name },
+      };
+
+    case 'P2014':
+      return {
+        statusCode: 400,
+        errorCode: 'RELATION_VIOLATION',
+        message: 'The change would violate the required relation',
+        details: { relation: error.meta?.relation_name },
+      };
+
+    case 'P2015':
+      return {
+        statusCode: 404,
+        errorCode: 'RELATED_RECORD_NOT_FOUND',
+        message: 'A related record could not be found',
+        details: { details: error.meta?.details },
+      };
+
+    case 'P2016':
+      return {
+        statusCode: 400,
+        errorCode: 'QUERY_INTERPRETATION_ERROR',
+        message: 'Query interpretation error',
+        details: { details: error.meta?.details },
+      };
+
+    case 'P2017':
+      return {
+        statusCode: 400,
+        errorCode: 'RECORDS_NOT_CONNECTED',
+        message: 'The records for relation are not connected',
+        details: { relation: error.meta?.relation_name },
+      };
+
+    case 'P2018':
+      return {
+        statusCode: 404,
+        errorCode: 'REQUIRED_CONNECTED_RECORDS_NOT_FOUND',
+        message: 'The required connected records were not found',
+        details: { details: error.meta?.details },
+      };
+
+    case 'P2019':
+      return {
+        statusCode: 400,
+        errorCode: 'INPUT_ERROR',
+        message: 'Input error',
+        details: { details: error.meta?.details },
+      };
+
+    case 'P2020':
+      return {
+        statusCode: 400,
+        errorCode: 'VALUE_OUT_OF_RANGE',
+        message: 'Value out of range for the type',
+        details: { details: error.meta?.details },
+      };
+
+    case 'P2021':
+      return {
+        statusCode: 404,
+        errorCode: 'TABLE_NOT_FOUND',
+        message: 'The table does not exist in the current database',
+        details: { table: error.meta?.table },
+      };
+
+    case 'P2022':
+      return {
+        statusCode: 404,
+        errorCode: 'COLUMN_NOT_FOUND',
+        message: 'The column does not exist in the current database',
+        details: { column: error.meta?.column },
+      };
+
+    case 'P2025':
+      return {
+        statusCode: 404,
+        errorCode: 'RECORD_NOT_FOUND',
+        message: 'An operation failed because it depends on one or more records that were required but not found',
+        details: { cause: error.meta?.cause },
+      };
+
+    default:
+      return {
+        statusCode: 500,
+        errorCode: 'DATABASE_ERROR',
+        message: 'Database operation failed',
+        details: { code: error.code, meta: error.meta },
+      };
+  }
+}
+
+// Custom error classes
+export class ValidationError extends Error {
+  statusCode = 400;
+  code = 'VALIDATION_ERROR';
+  details: any;
+
+  constructor(message: string, details?: any) {
+    super(message);
+    this.name = 'ValidationError';
+    this.details = details;
+  }
+}
+
+export class NotFoundError extends Error {
+  statusCode = 404;
+  code = 'NOT_FOUND';
+
+  constructor(message: string = 'Resource not found') {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class UnauthorizedError extends Error {
+  statusCode = 401;
+  code = 'UNAUTHORIZED';
+
+  constructor(message: string = 'Unauthorized') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+export class ForbiddenError extends Error {
+  statusCode = 403;
+  code = 'FORBIDDEN';
+
+  constructor(message: string = 'Forbidden') {
+    super(message);
+    this.name = 'ForbiddenError';
+  }
+}
+
+export class ConflictError extends Error {
+  statusCode = 409;
+  code = 'CONFLICT';
+
+  constructor(message: string = 'Conflict') {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+export class BadRequestError extends Error {
+  statusCode = 400;
+  code = 'BAD_REQUEST';
+  details: any;
+
+  constructor(message: string = 'Bad request', details?: any) {
+    super(message);
+    this.name = 'BadRequestError';
+    this.details = details;
+  }
+}

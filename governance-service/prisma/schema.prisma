@@ -1,0 +1,651 @@
+// Governance Service Database Schema
+// Supports all governance platform activities A061-A068
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A062: User Management and Access Control
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  username    String   @unique
+  firstName   String
+  lastName    String
+  password    String
+  isActive    Boolean  @default(true)
+  lastLogin   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+
+  // Relationships
+  roles               UserRole[]
+  createdWorkflows    Workflow[]           @relation("WorkflowCreator")
+  assignedTasks       WorkflowTask[]       @relation("TaskAssignee")
+  completedTasks      WorkflowTask[]       @relation("TaskCompleter")
+  createdDocuments    Document[]           @relation("DocumentCreator")
+  documentApprovals   DocumentApproval[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  reportSubscriptions ReportSubscription[]
+  dashboardAccess     DashboardAccess[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  permissions Json     // Array of permission strings
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+
+  // Relationships
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// A061: Governance Workflow Engine
+model Workflow {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  definition  Json          // Workflow definition (steps, conditions, etc.)
+  version     Int           @default(1)
+  status      WorkflowStatus @default(DRAFT)
+  isActive    Boolean       @default(false)
+  createdBy   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  tenantId    String
+
+  // Relationships
+  creator    User               @relation("WorkflowCreator", fields: [createdBy], references: [id])
+  instances  WorkflowInstance[]
+  tasks      WorkflowTask[]
+
+  @@map("workflows")
+}
+
+model WorkflowInstance {
+  id         String                @id @default(uuid())
+  workflowId String
+  status     WorkflowInstanceStatus @default(PENDING)
+  data       Json?                 // Instance-specific data
+  startedAt  DateTime              @default(now())
+  completedAt DateTime?
+  tenantId   String
+
+  // Relationships
+  workflow Workflow       @relation(fields: [workflowId], references: [id])
+  tasks    WorkflowTask[]
+
+  @@map("workflow_instances")
+}
+
+model WorkflowTask {
+  id         String     @id @default(uuid())
+  workflowId String
+  instanceId String
+  name       String
+  description String?
+  type       TaskType
+  status     TaskStatus @default(PENDING)
+  assigneeId String?
+  completedBy String?
+  data       Json?      // Task-specific data
+  dueDate    DateTime?
+  createdAt  DateTime   @default(now())
+  completedAt DateTime?
+  tenantId   String
+
+  // Relationships
+  workflow  Workflow         @relation(fields: [workflowId], references: [id])
+  instance  WorkflowInstance @relation(fields: [instanceId], references: [id])
+  assignee  User?            @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  completer User?            @relation("TaskCompleter", fields: [completedBy], references: [id])
+
+  @@map("workflow_tasks")
+}
+
+// A063: Document and Policy Management System
+model Document {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  content     String?        // Document content or reference to file
+  type        DocumentType
+  category    String?
+  version     String         @default("1.0")
+  status      DocumentStatus @default(DRAFT)
+  filePath    String?        // Path to uploaded file
+  fileSize    Int?
+  mimeType    String?
+  createdBy   String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  tenantId    String
+
+  // Relationships
+  creator    User                @relation("DocumentCreator", fields: [createdBy], references: [id])
+  versions   DocumentVersion[]
+  approvals  DocumentApproval[]
+  tags       DocumentTag[]
+
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id         String   @id @default(uuid())
+  documentId String
+  version    String
+  content    String?
+  filePath   String?
+  changes    String?  // Description of changes
+  createdAt  DateTime @default(now())
+  tenantId   String
+
+  // Relationships
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_versions")
+}
+
+model DocumentApproval {
+  id         String           @id @default(uuid())
+  documentId String
+  approverId String
+  status     ApprovalStatus   @default(PENDING)
+  comments   String?
+  approvedAt DateTime?
+  tenantId   String
+
+  // Relationships
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  approver User     @relation(fields: [approverId], references: [id])
+
+  @@unique([documentId, approverId])
+  @@map("document_approvals")
+}
+
+model DocumentTag {
+  id         String @id @default(uuid())
+  documentId String
+  tag        String
+  tenantId   String
+
+  // Relationships
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, tag])
+  @@map("document_tags")
+}
+
+// A064: Notification and Communication Features
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?              // Additional notification data
+  status    NotificationStatus @default(UNREAD)
+  priority  Priority           @default(MEDIUM)
+  createdAt DateTime           @default(now())
+  readAt    DateTime?
+  tenantId  String
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id       String           @id @default(uuid())
+  name     String           @unique
+  type     NotificationType
+  subject  String
+  template String           // Template with placeholders
+  isActive Boolean          @default(true)
+  tenantId String
+
+  @@map("notification_templates")
+}
+
+// A065: Data Collection and Processing Capabilities
+model DataSource {
+  id          String           @id @default(uuid())
+  name        String
+  type        DataSourceType
+  config      Json             // Connection configuration
+  status      DataSourceStatus @default(ACTIVE)
+  lastSync    DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tenantId    String
+
+  // Relationships
+  collections DataCollection[]
+
+  @@map("data_sources")
+}
+
+model DataCollection {
+  id           String               @id @default(uuid())
+  sourceId     String
+  name         String
+  description  String?
+  schedule     String?              // Cron expression
+  status       DataCollectionStatus @default(ACTIVE)
+  lastRun      DateTime?
+  nextRun      DateTime?
+  config       Json?                // Collection-specific configuration
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  tenantId     String
+
+  // Relationships
+  source DataSource @relation(fields: [sourceId], references: [id])
+  runs   DataRun[]
+
+  @@map("data_collections")
+}
+
+model DataRun {
+  id           String        @id @default(uuid())
+  collectionId String
+  status       DataRunStatus @default(RUNNING)
+  startedAt    DateTime      @default(now())
+  completedAt  DateTime?
+  recordsProcessed Int?
+  errors       Json?         // Error details
+  metrics      Json?         // Run metrics
+  tenantId     String
+
+  // Relationships
+  collection DataCollection @relation(fields: [collectionId], references: [id])
+
+  @@map("data_runs")
+}
+
+// A066: Dashboard and Visualization Features
+model Dashboard {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  type        DashboardType
+  config      Json            // Dashboard configuration
+  layout      Json            // Widget layout
+  isPublic    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  tenantId    String
+
+  // Relationships
+  widgets DashboardWidget[]
+  access  DashboardAccess[]
+
+  @@map("dashboards")
+}
+
+model DashboardWidget {
+  id          String     @id @default(uuid())
+  dashboardId String
+  name        String
+  type        WidgetType
+  config      Json       // Widget configuration
+  position    Json       // Position and size
+  dataSource  Json?      // Data source configuration
+  tenantId    String
+
+  // Relationships
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@map("dashboard_widgets")
+}
+
+model DashboardAccess {
+  id          String      @id @default(uuid())
+  dashboardId String
+  userId      String
+  permission  Permission  @default(READ)
+  tenantId    String
+
+  // Relationships
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dashboardId, userId])
+  @@map("dashboard_access")
+}
+
+// A067: Standard and Custom Reporting Functions
+model Report {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  type        ReportType
+  query       Json       // Report query/configuration
+  schedule    String?    // Cron expression for scheduled reports
+  format      ReportFormat @default(PDF)
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  tenantId    String
+
+  // Relationships
+  subscriptions ReportSubscription[]
+  executions    ReportExecution[]
+
+  @@map("reports")
+}
+
+model ReportSubscription {
+  id       String @id @default(uuid())
+  reportId String
+  userId   String
+  email    String
+  isActive Boolean @default(true)
+  tenantId String
+
+  // Relationships
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@map("report_subscriptions")
+}
+
+model ReportExecution {
+  id          String              @id @default(uuid())
+  reportId    String
+  status      ReportExecutionStatus @default(RUNNING)
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  filePath    String?             // Path to generated report file
+  fileSize    Int?
+  error       String?
+  tenantId    String
+
+  // Relationships
+  report Report @relation(fields: [reportId], references: [id])
+
+  @@map("report_executions")
+}
+
+// A068: Predictive Analytics and Insights Engine
+model AnalyticsModel {
+  id          String              @id @default(uuid())
+  name        String
+  description String?
+  type        AnalyticsModelType
+  config      Json                // Model configuration
+  status      AnalyticsModelStatus @default(TRAINING)
+  accuracy    Float?
+  lastTrained DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  tenantId    String
+
+  // Relationships
+  predictions Prediction[]
+  insights    Insight[]
+
+  @@map("analytics_models")
+}
+
+model Prediction {
+  id          String   @id @default(uuid())
+  modelId     String
+  input       Json     // Input data
+  output      Json     // Prediction output
+  confidence  Float
+  createdAt   DateTime @default(now())
+  tenantId    String
+
+  // Relationships
+  model AnalyticsModel @relation(fields: [modelId], references: [id])
+
+  @@map("predictions")
+}
+
+model Insight {
+  id          String      @id @default(uuid())
+  modelId     String?
+  type        InsightType
+  title       String
+  description String
+  data        Json        // Insight data
+  priority    Priority    @default(MEDIUM)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  expiresAt   DateTime?
+  tenantId    String
+
+  // Relationships
+  model AnalyticsModel? @relation(fields: [modelId], references: [id])
+
+  @@map("insights")
+}
+
+// Audit and Logging
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  resource  String
+  resourceId String?
+  oldValues Json?
+  newValues Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  tenantId  String
+
+  // Relationships
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// Enums
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum WorkflowInstanceStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskType {
+  APPROVAL
+  REVIEW
+  DATA_ENTRY
+  NOTIFICATION
+  AUTOMATION
+  CUSTOM
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+  OVERDUE
+}
+
+enum DocumentType {
+  POLICY
+  PROCEDURE
+  GUIDELINE
+  TEMPLATE
+  REPORT
+  CONTRACT
+  OTHER
+}
+
+enum DocumentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+  EXPIRED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  DOCUMENT_APPROVAL
+  WORKFLOW_COMPLETED
+  SYSTEM_ALERT
+  REMINDER
+  CUSTOM
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DataSourceType {
+  DATABASE
+  API
+  FILE
+  WEBHOOK
+  MANUAL
+}
+
+enum DataSourceStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum DataCollectionStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum DataRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DashboardType {
+  EXECUTIVE
+  OPERATIONAL
+  ANALYTICAL
+  CUSTOM
+}
+
+enum WidgetType {
+  CHART
+  TABLE
+  METRIC
+  MAP
+  TEXT
+  CUSTOM
+}
+
+enum Permission {
+  READ
+  WRITE
+  ADMIN
+}
+
+enum ReportType {
+  STANDARD
+  CUSTOM
+  SCHEDULED
+  AD_HOC
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  CSV
+  JSON
+}
+
+enum ReportExecutionStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AnalyticsModelType {
+  CLASSIFICATION
+  REGRESSION
+  CLUSTERING
+  TIME_SERIES
+  ANOMALY_DETECTION
+}
+
+enum AnalyticsModelStatus {
+  TRAINING
+  TRAINED
+  DEPLOYED
+  FAILED
+  ARCHIVED
+}
+
+enum InsightType {
+  TREND
+  ANOMALY
+  PREDICTION
+  RECOMMENDATION
+  ALERT
+}
