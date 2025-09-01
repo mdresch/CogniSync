@@ -394,8 +394,7 @@ router.get('/me/profile', async (req: AuthenticatedRequest, res: Response) => {
 router.put('/me/profile', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const allowedFields = ['firstName', 'lastName', 'email'];
-    const updateData = {};
-    
+    const updateData: { [key: string]: any } = {};
     // Only allow users to update their own basic profile fields
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {

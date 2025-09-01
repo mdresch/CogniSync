@@ -40,7 +40,7 @@ export interface EscalationRule {
 export class NotificationService {
   private prisma: PrismaClient;
   private wss: WebSocketServer;
-  private emailTransporter: nodemailer.Transporter;
+  private emailTransporter?: nodemailer.Transporter;
   private userConnections: Map<string, WebSocket[]> = new Map();
   private templates: Map<string, NotificationTemplate> = new Map();
 
@@ -560,7 +560,7 @@ export class NotificationService {
 
   private initializeEmailTransporter(): void {
     if (config.emailHost && config.emailPort && config.emailUser && config.emailPassword) {
-      this.emailTransporter = nodemailer.createTransporter({
+      this.emailTransporter = nodemailer.createTransport({
         host: config.emailHost,
         port: config.emailPort,
         secure: config.emailSecure || false,

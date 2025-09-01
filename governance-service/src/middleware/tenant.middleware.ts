@@ -4,6 +4,7 @@ import { logger, logSecurity } from '../utils/logger';
 
 export interface TenantRequest extends AuthenticatedRequest {
   tenantId?: string;
+  context?: Record<string, any>;
 }
 
 // Middleware to extract and validate tenant information

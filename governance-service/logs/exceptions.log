@@ -1,0 +1,60 @@
+2025-09-01 06:24:15:2415 [31merror[39m: [31muncaughtException: Cannot find module 'pdfkit'[39m
+[31mRequire stack:[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\routes\report.routes.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\server.js[39m
+[31mError: Cannot find module 'pdfkit'[39m
+[31mRequire stack:[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\routes\report.routes.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\server.js[39m
+[31m    at Function._resolveFilename (node:internal/modules/cjs/loader:1365:15)[39m
+[31m    at defaultResolveImpl (node:internal/modules/cjs/loader:1021:19)[39m
+[31m    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1026:22)[39m
+[31m    at Function._load (node:internal/modules/cjs/loader:1175:37)[39m
+[31m    at TracingChannel.traceSync (node:diagnostics_channel:322:14)[39m
+[31m    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)[39m
+[31m    at Module.require (node:internal/modules/cjs/loader:1445:12)[39m
+[31m    at require (node:internal/modules/helpers:135:16)[39m
+[31m    at Object.<anonymous> (D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js:45:34)[39m
+[31m    at Module._compile (node:internal/modules/cjs/loader:1688:14)[39m
+2025-09-01 06:26:29:2629 [31merror[39m: [31muncaughtException: Cannot find module 'pdfkit'[39m
+[31mRequire stack:[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\routes\report.routes.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\server.js[39m
+[31mError: Cannot find module 'pdfkit'[39m
+[31mRequire stack:[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\routes\report.routes.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\server.js[39m
+[31m    at Function._resolveFilename (node:internal/modules/cjs/loader:1365:15)[39m
+[31m    at defaultResolveImpl (node:internal/modules/cjs/loader:1021:19)[39m
+[31m    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1026:22)[39m
+[31m    at Function._load (node:internal/modules/cjs/loader:1175:37)[39m
+[31m    at TracingChannel.traceSync (node:diagnostics_channel:322:14)[39m
+[31m    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)[39m
+[31m    at Module.require (node:internal/modules/cjs/loader:1445:12)[39m
+[31m    at require (node:internal/modules/helpers:135:16)[39m
+[31m    at Object.<anonymous> (D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js:45:34)[39m
+[31m    at Module._compile (node:internal/modules/cjs/loader:1688:14)[39m
+2025-09-01 06:26:48:2648 [31merror[39m: [31muncaughtException: Cannot find module 'pdfkit'[39m
+[31mRequire stack:[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\routes\report.routes.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\server.js[39m
+[31mError: Cannot find module 'pdfkit'[39m
+[31mRequire stack:[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\routes\report.routes.js[39m
+[31m- D:\source\repos\CogniSync\governance-service\dist\server.js[39m
+[31m    at Function._resolveFilename (node:internal/modules/cjs/loader:1365:15)[39m
+[31m    at defaultResolveImpl (node:internal/modules/cjs/loader:1021:19)[39m
+[31m    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1026:22)[39m
+[31m    at Function._load (node:internal/modules/cjs/loader:1175:37)[39m
+[31m    at TracingChannel.traceSync (node:diagnostics_channel:322:14)[39m
+[31m    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)[39m
+[31m    at Module.require (node:internal/modules/cjs/loader:1445:12)[39m
+[31m    at require (node:internal/modules/helpers:135:16)[39m
+[31m    at Object.<anonymous> (D:\source\repos\CogniSync\governance-service\dist\services\reporting.service.js:45:34)[39m
+[31m    at Module._compile (node:internal/modules/cjs/loader:1688:14)[39m

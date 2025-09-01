@@ -3,7 +3,7 @@
  * Handles authentication, encryption, and secure communication between microservices
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import https from 'https';
 import { JWTSecurityManager } from './jwt-utils';
 
@@ -68,11 +68,11 @@ export class InterServiceClient {
 
     const instance = axios.create(config);
 
-    // Add request interceptor for authentication
-    instance.interceptors.request.use(
-      (config) => this.addAuthentication(config),
-      (error) => Promise.reject(error)
-    );
+  // Add request interceptor for authentication
+  instance.interceptors.request.use(
+    (config) => this.addAuthentication(config),
+    (error) => Promise.reject(error)
+  );
 
     // Add response interceptor for error handling
     instance.interceptors.response.use(
@@ -108,10 +108,10 @@ export class InterServiceClient {
   /**
    * Add authentication to request
    */
-  private addAuthentication(config: AxiosRequestConfig): AxiosRequestConfig {
+  private addAuthentication(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
     // Generate service token
-    const scopes = config.metadata?.scopes || ['read'];
-    const tenantId = config.metadata?.tenantId;
+    const scopes = (config as any).metadata?.scopes || ['read'];
+    const tenantId = (config as any).metadata?.tenantId;
     
     const token = this.jwtManager.generateServiceToken(
       this.options.targetService,
@@ -120,10 +120,11 @@ export class InterServiceClient {
     );
 
     // Add JWT token to Authorization header
-    config.headers = {
-      ...config.headers,
-      'Authorization': `Bearer ${token}`
-    };
+    if (typeof config.headers?.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${token}`);
+    } else if (config.headers) {
+      (config.headers as any)['Authorization'] = `Bearer ${token}`;
+    }
 
     // Add request signature for additional security
     const { signature, timestamp } = this.jwtManager.createSignedRequest(
@@ -133,9 +134,9 @@ export class InterServiceClient {
       config.data
     );
 
-    config.headers['X-Request-Signature'] = signature;
-    config.headers['X-Request-Timestamp'] = timestamp;
-    config.headers['X-Service-ID'] = this.options.serviceId;
+    (config.headers as any)['X-Request-Signature'] = signature;
+    (config.headers as any)['X-Request-Timestamp'] = timestamp;
+    (config.headers as any)['X-Service-ID'] = this.options.serviceId;
 
     return config;
   }
@@ -224,9 +225,9 @@ export class InterServiceClient {
     options: SecureRequestOptions = {}
   ): Promise<AxiosResponse<T>> {
     return this.axios.get(url, {
-      metadata: options,
+      ...(options ? { metadata: options } : {}),
       timeout: options.timeout
-    });
+    } as any);
   }
 
   /**
@@ -238,9 +239,9 @@ export class InterServiceClient {
     options: SecureRequestOptions = {}
   ): Promise<AxiosResponse<T>> {
     return this.axios.post(url, data, {
-      metadata: options,
+      ...(options ? { metadata: options } : {}),
       timeout: options.timeout
-    });
+    } as any);
   }
 
   /**
@@ -252,9 +253,9 @@ export class InterServiceClient {
     options: SecureRequestOptions = {}
   ): Promise<AxiosResponse<T>> {
     return this.axios.put(url, data, {
-      metadata: options,
+      ...(options ? { metadata: options } : {}),
       timeout: options.timeout
-    });
+    } as any);
   }
 
   /**
@@ -265,9 +266,9 @@ export class InterServiceClient {
     options: SecureRequestOptions = {}
   ): Promise<AxiosResponse<T>> {
     return this.axios.delete(url, {
-      metadata: options,
+      ...(options ? { metadata: options } : {}),
       timeout: options.timeout
-    });
+    } as any);
   }
 
   /**
@@ -279,9 +280,9 @@ export class InterServiceClient {
     options: SecureRequestOptions = {}
   ): Promise<AxiosResponse<T>> {
     return this.axios.patch(url, data, {
-      metadata: options,
+      ...(options ? { metadata: options } : {}),
       timeout: options.timeout
-    });
+    } as any);
   }
 
   /**
@@ -323,11 +324,15 @@ export class InterServiceClient {
     } catch (error) {
       const latency = Date.now() - startTime;
       
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
       return {
         connected: false,
         authenticated: false,
         latency,
-        error: error.message
+        error: errorMsg
       };
     }
   }

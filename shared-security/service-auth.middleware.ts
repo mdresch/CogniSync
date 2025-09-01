@@ -93,7 +93,11 @@ export class ServiceAuthMiddleware {
       // No valid authentication found
       return this.sendAuthError(res, 'Authentication required', 'MISSING_AUTH');
     } catch (error) {
-      return this.sendAuthError(res, error.message, 'AUTH_ERROR');
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
+      return this.sendAuthError(res, errorMsg, 'AUTH_ERROR');
     }
   };
 
@@ -133,7 +137,11 @@ export class ServiceAuthMiddleware {
 
       return false;
     } catch (error) {
-      throw new Error(`Invalid JWT token: ${error.message}`);
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
+      throw new Error(`Invalid JWT token: ${errorMsg}`);
     }
   }
 

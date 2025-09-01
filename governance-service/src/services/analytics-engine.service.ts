@@ -1,3 +1,4 @@
+import { CronJob } from 'cron';
 import { PrismaClient, AnalyticsModel, Prediction, Insight, AnalyticsModelType, AnalyticsModelStatus, InsightType, Priority } from '@prisma/client';
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEmitter } from 'events';
@@ -38,7 +39,7 @@ export class AnalyticsEngine extends EventEmitter {
   private prisma: PrismaClient;
   private wss: WebSocketServer;
   private models: Map<string, AnalyticsModel> = new Map();
-  private cronJobs: Map<string, cron.CronJob> = new Map();
+  private cronJobs: Map<string, CronJob> = new Map();
   private wsConnections: Map<string, WebSocket[]> = new Map();
 
   constructor(prisma: PrismaClient, wss: WebSocketServer) {
@@ -212,7 +213,7 @@ export class AnalyticsEngine extends EventEmitter {
     granularity: 'hour' | 'day' | 'week' | 'month';
   }): Promise<any> {
     try {
-      const trends = {};
+      const trends: { [key: string]: any } = {};
 
       for (const metric of options.metrics) {
         trends[metric] = await this.calculateTrend(metric, tenantId, options);
@@ -290,7 +291,7 @@ export class AnalyticsEngine extends EventEmitter {
     sensitivity: 'low' | 'medium' | 'high';
   }): Promise<any[]> {
     try {
-      const anomalies = [];
+      const anomalies: any[] = [];
 
       for (const metric of options.metrics) {
         const metricAnomalies = await this.detectMetricAnomalies(metric, tenantId, options);
@@ -312,8 +313,8 @@ export class AnalyticsEngine extends EventEmitter {
 
   private async detectMetricAnomalies(metric: string, tenantId: string, options: any): Promise<any[]> {
     // Implement statistical anomaly detection
-    const data = await this.getMetricTimeSeries(metric, tenantId, options.timeRange);
-    const anomalies = [];
+  const data = await this.getMetricTimeSeries(metric, tenantId, options.timeRange);
+  const anomalies: any[] = [];
 
     // Calculate statistical thresholds
     const values = data.map(d => d.value);
@@ -490,7 +491,7 @@ export class AnalyticsEngine extends EventEmitter {
 
   private startScheduledTasks(): void {
     // Generate insights daily
-    const insightJob = new cron.CronJob('0 2 * * *', async () => {
+  const insightJob = new CronJob('0 2 * * *', async () => {
       try {
         const tenants = await this.getActiveTenants();
         for (const tenantId of tenants) {
@@ -501,11 +502,11 @@ export class AnalyticsEngine extends EventEmitter {
       }
     });
 
-    insightJob.start();
-    this.cronJobs.set('insight-generation', insightJob);
+  insightJob.start();
+  this.cronJobs.set('insight-generation', insightJob);
 
-    // Detect anomalies every hour
-    const anomalyJob = new cron.CronJob('0 * * * *', async () => {
+  // Detect anomalies every hour
+  const anomalyJob = new CronJob('0 * * * *', async () => {
       try {
         const tenants = await this.getActiveTenants();
         for (const tenantId of tenants) {
@@ -520,8 +521,8 @@ export class AnalyticsEngine extends EventEmitter {
       }
     });
 
-    anomalyJob.start();
-    this.cronJobs.set('anomaly-detection', anomalyJob);
+  anomalyJob.start();
+  this.cronJobs.set('anomaly-detection', anomalyJob);
   }
 
   // Helper methods

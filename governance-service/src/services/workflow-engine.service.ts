@@ -1,3 +1,4 @@
+import { CronJob } from 'cron';
 import { PrismaClient, Workflow, WorkflowInstance, WorkflowTask, TaskStatus, WorkflowInstanceStatus } from '@prisma/client';
 import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
@@ -45,7 +46,7 @@ export class WorkflowEngine extends EventEmitter {
   private prisma: PrismaClient;
   private notificationService: NotificationService;
   private activeInstances: Map<string, WorkflowInstance> = new Map();
-  private cronJobs: Map<string, cron.CronJob> = new Map();
+  private cronJobs: Map<string, CronJob> = new Map();
   private wsConnections: Map<string, WebSocket[]> = new Map();
 
   constructor(prisma: PrismaClient, notificationService: NotificationService) {
@@ -179,7 +180,7 @@ export class WorkflowEngine extends EventEmitter {
           status: TaskStatus.COMPLETED,
           completedBy,
           completedAt: new Date(),
-          data: data ? { ...task.data, ...data } : task.data,
+          data: (data && typeof task.data === 'object' && task.data !== null) ? { ...task.data, ...data } : task.data,
         },
       });
 
@@ -280,7 +281,7 @@ export class WorkflowEngine extends EventEmitter {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [ { startedAt: 'desc' } ],
     });
   }
 
@@ -344,7 +345,7 @@ export class WorkflowEngine extends EventEmitter {
 
   private startTaskMonitoring(): void {
     // Check for overdue tasks every hour
-    const job = new cron.CronJob('0 * * * *', async () => {
+    const job = new CronJob('0 * * * *', async () => {
       await this.checkOverdueTasks();
     });
 
@@ -402,7 +403,7 @@ export class WorkflowEngine extends EventEmitter {
   }
 
   private async createInitialTasks(workflow: Workflow, instance: WorkflowInstance): Promise<void> {
-    const definition = workflow.definition as WorkflowDefinition;
+  const definition = (workflow.definition as unknown) as WorkflowDefinition;
     const initialSteps = definition.steps.filter(step => 
       !definition.steps.some(s => s.nextSteps?.includes(step.id))
     );
@@ -433,7 +434,7 @@ export class WorkflowEngine extends EventEmitter {
   }
 
   private async processNextSteps(workflow: Workflow, instance: WorkflowInstance, completedTask: WorkflowTask): Promise<void> {
-    const definition = workflow.definition as WorkflowDefinition;
+  const definition = (workflow.definition as unknown) as WorkflowDefinition;
     const currentStep = definition.steps.find(s => s.name === completedTask.name);
 
     if (!currentStep?.nextSteps) {
@@ -510,7 +511,7 @@ export class WorkflowEngine extends EventEmitter {
 
     if (!workflow) return;
 
-    const definition = workflow.definition as WorkflowDefinition;
+  const definition = (workflow.definition as unknown) as WorkflowDefinition;
     const escalationRules = definition.settings?.escalation;
 
     if (!escalationRules) return;

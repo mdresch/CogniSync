@@ -52,11 +52,3 @@ export {
   applySecurityPreset
 } from './security-config';
 
-// Re-export commonly used types
-export type {
-  AuthenticatedRequest as SecureRequest,
-  ServiceToken,
-  UserToken,
-  MTLSConfig,
-  SecurityConfig
-};

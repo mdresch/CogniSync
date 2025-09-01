@@ -42,13 +42,17 @@ class SecurityTestSuite {
       });
       console.log(`✅ ${name}`);
     } catch (error) {
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
       this.results.push({
         name,
         passed: false,
-        error: error.message,
+        error: errorMsg,
         duration: Date.now() - startTime
       });
-      console.log(`❌ ${name}: ${error.message}`);
+      console.log(`❌ ${name}: ${errorMsg}`);
     }
   }
 
@@ -126,7 +130,11 @@ class SecurityTestSuite {
         jwtManager.validateServiceToken('invalid-token');
         throw new Error('Should have rejected invalid token');
       } catch (error) {
-        if (!error.message.includes('Token validation failed')) {
+        let errorMsg = 'Unknown error';
+        if (error && typeof error === 'object' && 'message' in error) {
+          errorMsg = (error as any).message;
+        }
+        if (!errorMsg.includes('Token validation failed')) {
           throw error;
         }
       }
@@ -265,7 +273,7 @@ class SecurityTestSuite {
       process.env.NODE_ENV = 'test';
       
       const config = getServiceSecurityConfig('test-service');
-      if (config.environment !== 'test') {
+      if (config.environment != 'test') {
         throw new Error('Environment detection failed');
       }
       
@@ -280,7 +288,11 @@ class SecurityTestSuite {
         getServiceSecurityConfig('test-service');
         throw new Error('Should have failed with short JWT secret');
       } catch (error) {
-        if (!error.message.includes('JWT secret must be at least 32 characters')) {
+        let errorMsg = 'Unknown error';
+        if (error && typeof error === 'object' && 'message' in error) {
+          errorMsg = (error as any).message;
+        }
+        if (!errorMsg.includes('JWT secret must be at least 32 characters')) {
           throw error;
         }
       } finally {

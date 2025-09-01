@@ -11,9 +11,18 @@ import Joi from 'joi';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Initialize services (these would be injected in a real application)
-let workflowEngine: WorkflowEngine;
-let notificationService: NotificationService;
+// Initialize services
+import { WebSocketServer } from 'ws';
+// ... other imports
+
+// Initialize WebSocketServer (ensure this is properly configured for your app)
+
+// Initialize WebSocketServer (ensure this is properly configured for your app)
+const wss = new WebSocketServer({ noServer: true });
+
+// Pass required arguments to constructors
+const notificationService = new NotificationService(prisma, wss);
+const workflowEngine = new WorkflowEngine(prisma, notificationService);
 
 // Validation schemas
 const createWorkflowSchema = Joi.object({
@@ -162,7 +171,7 @@ router.get('/:id', requirePermission('workflows:read'), async (req: Authenticate
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { startedAt: 'desc' },
           take: 10,
         },
       },

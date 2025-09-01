@@ -35,7 +35,6 @@ export class MTLSManager {
 
   constructor(config: MTLSConfig) {
     this.config = {
-      validateCertificate: true,
       certificateRotationInterval: 24, // 24 hours default
       ...config
     };
@@ -70,7 +69,11 @@ export class MTLSManager {
 
       this.certificates.set('self', serviceCert);
     } catch (error) {
-      throw new Error(`Failed to load mTLS certificates: ${error.message}`);
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
+      throw new Error(`Failed to load mTLS certificates: ${errorMsg}`);
     }
   }
 
@@ -110,7 +113,11 @@ export class MTLSManager {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
       return expiryDate;
     } catch (error) {
-      throw new Error(`Failed to parse certificate expiry: ${error.message}`);
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
+      throw new Error(`Failed to parse certificate expiry: ${errorMsg}`);
     }
   }
 

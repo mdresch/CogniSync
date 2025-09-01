@@ -184,8 +184,8 @@ export class DocumentManagementService {
 
         await this.createDocumentVersion(documentId, {
           version: newVersionNumber,
-          content: updateData.content || existingDocument.content,
-          filePath,
+          content: (updateData.content ?? undefined) || (existingDocument.content ?? undefined),
+          filePath: filePath ?? undefined,
           changes: updateData.changes || 'Document updated',
           tenantId,
         });

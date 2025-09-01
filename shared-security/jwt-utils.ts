@@ -125,7 +125,11 @@ export class JWTSecurityManager {
 
       return decoded;
     } catch (error) {
-      throw new Error(`Token validation failed: ${error.message}`);
+      let errorMsg = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = (error as any).message;
+      }
+      throw new Error(`Token validation failed: ${errorMsg}`);
     }
   }
 

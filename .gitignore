@@ -6,3 +6,4 @@ cogni-sync-client/.env
 knowledge-graph-service/.env
 atlassian-sync-service/.env
 llm-rag-service/.env
+.env

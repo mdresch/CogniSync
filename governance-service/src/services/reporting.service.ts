@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import cron from 'cron';
+// @ts-ignore
 import PDFDocument from 'pdfkit';
 import * as XLSX from 'xlsx';
 import { logger } from '../utils/logger';
@@ -232,7 +233,7 @@ export class ReportingService {
           data: {
             status: ReportExecutionStatus.FAILED,
             completedAt: new Date(),
-            error: error.message,
+            error: (error instanceof Error ? error.message : String(error)),
           },
         });
 
@@ -279,18 +280,18 @@ export class ReportingService {
           },
         },
         executions: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: [ { startedAt: 'desc' } ],
           take: 5,
         },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [ { updatedAt: 'desc' } ],
     });
   }
 
   async getReportExecutions(reportId: string, tenantId: string): Promise<ReportExecution[]> {
     return this.prisma.reportExecution.findMany({
       where: { reportId, tenantId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [ { startedAt: 'desc' } ],
     });
   }
 
@@ -304,9 +305,20 @@ export class ReportingService {
       return null;
     }
 
+    // Use execution.createdAt if available, else fallback to report.createdAt
+    // Use execution.createdAt if available, else fallback to report.createdAt
+    let createdAt: Date;
+    if ('createdAt' in execution && execution.createdAt) {
+      createdAt = execution.createdAt as Date;
+    } else if (execution.report && 'createdAt' in execution.report && execution.report.createdAt) {
+      createdAt = execution.report.createdAt as Date;
+    } else {
+      createdAt = new Date();
+    }
+
     return {
       filePath: execution.filePath,
-      fileName: `${execution.report.name}_${execution.createdAt.toISOString().split('T')[0]}.${this.getFileExtension(execution.report.format)}`,
+      fileName: `${execution.report.name}_${createdAt.toISOString().split('T')[0]}.${this.getFileExtension(execution.report.format)}`,
     };
   }
 
@@ -409,7 +421,9 @@ export class ReportingService {
   }
 
   private async executeReportQuery(report: Report, parameters?: any): Promise<ReportData> {
-    const query = report.query as ReportQuery;
+    const query: ReportQuery = typeof report.query === 'object' && report.query !== null && 'dataSource' in (report.query as any)
+      ? (report.query as unknown) as ReportQuery
+      : { dataSource: '', filters: {}, groupBy: [], aggregations: {}, dateRange: undefined, limit: 1000 };
     
     // Apply parameters to query
     const finalQuery = { ...query };

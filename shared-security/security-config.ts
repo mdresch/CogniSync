@@ -8,7 +8,7 @@ import { MTLSConfig, getDefaultMTLSConfig } from './mtls-config';
 export interface SecurityConfig {
   // Service identification
   serviceId: string;
-  environment: 'development' | 'staging' | 'production';
+  environment: 'development' | 'staging' | 'production' | 'test';
   
   // Authentication settings
   authentication: {

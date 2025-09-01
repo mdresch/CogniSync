@@ -1,0 +1,1 @@
+{"version":3,"file":"security-test.d.ts","sourceRoot":"","sources":["../security-test.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAeH,cAAM,iBAAiB;IACrB,OAAO,CAAC,OAAO,CAAoB;IAE7B,WAAW,IAAI,OAAO,CAAC,IAAI,CAAC;YAYpB,OAAO;YAyBP,eAAe;YAuFf,4BAA4B;YA+C5B,6BAA6B;YAiC7B,qBAAqB;YAmCrB,yBAAyB;IA6CvC,OAAO,CAAC,YAAY;CAgCrB;AAWD,OAAO,EAAE,iBAAiB,EAAE,CAAC"}

@@ -37,9 +37,10 @@ describe('Server E2E Tests', () => {
   test('POST /webhooks/:configId should return 202 and enqueue the event', async () => {
     const mockEnqueue = jest.fn().mockResolvedValue({});
     MockAtlassianSyncService.prototype.enqueueWebhookEvent = mockEnqueue;
-    
+
     const response = await request(app)
       .post('/webhooks/config-123')
+      .set('Authorization', 'Bearer your-api-key-1')
       .send({ data: 'some-webhook-data' });
 
     expect(response.status).toBe(202);
@@ -57,6 +58,7 @@ describe('Server E2E Tests', () => {
 
     const response = await request(app)
       .post('/api/events/event-dlq-1/retry')
+      .set('Authorization', 'Bearer your-api-key-1')
       .send();
 
     expect(response.status).toBe(200);
@@ -73,7 +75,9 @@ describe('Server E2E Tests', () => {
 
   // Test 3: Test health check endpoint
   test('GET /health should return a healthy status', async () => {
-    const response = await request(app).get('/health');
+    const response = await request(app)
+      .get('/health')
+      .set('Authorization', 'Bearer your-api-key-1');
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('healthy');
   });

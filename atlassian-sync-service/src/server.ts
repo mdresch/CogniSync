@@ -14,6 +14,7 @@ import { PrismaClient } from '@prisma/client';
 import { AtlassianSyncService } from './services/atlassian-sync.service';
 
 const app: express.Application = express();
+app.set('trust proxy', 'loopback'); // Restrict trust proxy to loopback for secure rate limiting
 const port = process.env.PORT || 3002;
 const prisma = new PrismaClient();
 const atlassianSyncService = new AtlassianSyncService();
@@ -52,9 +53,9 @@ app.get('/api/status', async (req, res) => {
     // Get basic statistics
     const stats = await Promise.all([
       prisma.syncEvent.count(),
-      prisma.syncEvent.count({ where: { processingStatus: 'completed' } }),
-      prisma.syncEvent.count({ where: { processingStatus: 'failed' } }),
-      prisma.syncEvent.count({ where: { processingStatus: 'pending' } }),
+      prisma.syncEvent.count({ where: { processingStatus: 'COMPLETED' } }),
+      prisma.syncEvent.count({ where: { processingStatus: 'FAILED' } }),
+      prisma.syncEvent.count({ where: { processingStatus: 'PENDING' } }),
       prisma.syncConfiguration.count({ where: { enabled: true } }),
       prisma.userMapping.count(),
       prisma.entityMapping.count(),
@@ -78,11 +79,32 @@ app.use(['/api', '/webhooks'], (req, res, next) => {
 app.post('/webhooks/:configId', async (req, res) => {
   try {
     const { configId } = req.params;
-    const signature = req.get('X-Hub-Signature-256') || req.get('X-Atlassian-Webhook-Signature');
+    // Retrieve Atlassian signature header
+    const signature = req.get('x-atlassian-webhook-signature');
+    if (!signature) {
+      console.error(`[SECURITY] Missing x-atlassian-webhook-signature header for configId: ${configId}`);
+      return res.status(401).json({ success: false, message: 'Missing webhook signature' });
+    }
 
-    // Enqueue the webhook event for async processing
-  await atlassianSyncService.enqueueWebhookEvent(configId, req.body);
+    // Fetch SyncConfiguration and secret
+    const syncConfig = await prisma.syncConfiguration.findUnique({ where: { id: configId } });
+    if (!syncConfig || !syncConfig.webhookSecret) {
+      console.error(`[SECURITY] No SyncConfiguration or webhookSecret found for configId: ${configId}`);
+      return res.status(401).json({ success: false, message: 'Invalid webhook configuration' });
+    }
 
+    // Get raw request body for signature validation
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
+    // Validate signature
+    const { validateSignature } = await import('./utils/security');
+    const valid = validateSignature(syncConfig.webhookSecret, rawBody, signature);
+    if (!valid) {
+      console.error(`[SECURITY] Invalid webhook signature for configId: ${configId}`);
+      return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
+    }
+
+    // Signature valid, enqueue event
+    await atlassianSyncService.enqueueWebhookEvent(configId, req.body);
     res.status(202).json({
       success: true,
       message: 'Webhook event accepted for processing',
@@ -405,20 +427,18 @@ app.post('/api/events/:id/retry', async (req, res) => {
       data: {
         processingStatus: 'PENDING', // Set back to PENDING
         retryCount: 0, // Reset counter
-        logs: {
-          push: { timestamp: new Date(), status: 'REQUEUED', message: 'Manual retry triggered by user.' },
-        },
+        // Removed 'logs' property as it is not a valid field for update
       },
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Event has been re-queued for processing.',
     });
 
   } catch (error) {
     console.error('Error retrying sync event:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     });

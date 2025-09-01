@@ -389,7 +389,7 @@ export class UserManagementService {
 
     roles.forEach(role => {
       if (Array.isArray(role.permissions)) {
-        role.permissions.forEach(permission => permissions.add(permission));
+        (role.permissions as string[]).filter(Boolean).forEach(permission => permissions.add(permission));
       }
     });
 
@@ -584,21 +584,27 @@ export class UserManagementService {
       permissions,
     };
 
-    return jwt.sign(payload, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn || '1h',
+    // Ensure secret is a string or Buffer
+    const secret: jwt.Secret = typeof config.jwtSecret === 'string' ? config.jwtSecret : Buffer.from(String(config.jwtSecret));
+    const options: jwt.SignOptions = {
+      expiresIn: (config.jwtExpiresIn as jwt.SignOptions['expiresIn']) || '1h',
       issuer: 'governance-service',
       audience: 'cogni-sync-platform',
-    });
+    };
+    return jwt.sign(payload, secret, options);
   }
 
   private generateRefreshToken(userId: string): string {
     const payload = { userId };
 
-    return jwt.sign(payload, config.jwtRefreshSecret, {
-      expiresIn: config.jwtRefreshExpiresIn || '7d',
+    // Ensure secret is a string or Buffer
+    const secret: jwt.Secret = typeof config.jwtRefreshSecret === 'string' ? config.jwtRefreshSecret : Buffer.from(String(config.jwtRefreshSecret));
+    const options: jwt.SignOptions = {
+      expiresIn: (config.jwtRefreshExpiresIn as jwt.SignOptions['expiresIn']) || '7d',
       issuer: 'governance-service',
       audience: 'cogni-sync-platform',
-    });
+    };
+    return jwt.sign(payload, secret, options);
   }
 
   // Initialize default roles and admin user

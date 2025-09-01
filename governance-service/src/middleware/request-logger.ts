@@ -22,7 +22,7 @@ export const requestLogger = (req: LoggedRequest, res: Response, next: NextFunct
   res.setHeader('X-Request-ID', req.requestId);
 
   // Log request start
-  const logData = {
+  const logData: any = {
     requestId: req.requestId,
     method: req.method,
     url: req.url,
@@ -30,6 +30,9 @@ export const requestLogger = (req: LoggedRequest, res: Response, next: NextFunct
     ip: req.ip || req.connection.remoteAddress,
     contentLength: req.get('Content-Length'),
     referer: req.get('Referer'),
+    headers: (req as any).headers,
+    query: (req as any).query,
+    body: undefined,
   };
 
   // Don't log sensitive data in production
@@ -73,8 +76,8 @@ export const requestLogger = (req: LoggedRequest, res: Response, next: NextFunct
       logger.info('Request completed', responseLogData);
     }
 
-    // Call original end method
-    originalEnd.call(this, chunk, encoding, cb);
+    // Call original end method and return its result
+    return originalEnd.call(this, chunk, encoding, cb);
   };
 
   next();
@@ -141,7 +144,7 @@ export const slowRequestLogger = (thresholdMs: number = 1000) => {
         });
       }
       
-      originalEnd.call(this, chunk, encoding, cb);
+      return originalEnd.call(this, chunk, encoding, cb);
     };
     
     next();
@@ -169,7 +172,7 @@ export const apiUsageLogger = (req: LoggedRequest, res: Response, next: NextFunc
       timestamp: new Date().toISOString(),
     });
     
-    originalEnd.call(this, chunk, encoding, cb);
+    return originalEnd.call(this, chunk, encoding, cb);
   };
   
   next();
@@ -181,8 +184,8 @@ export const correlationIdMiddleware = (req: LoggedRequest, res: Response, next:
   const correlationId = req.get('X-Correlation-ID') || req.get('X-Request-ID') || req.requestId;
   
   // Add to request and response
-  req.requestId = correlationId;
-  res.setHeader('X-Correlation-ID', correlationId);
+  req.requestId = correlationId || '';
+  res.setHeader('X-Correlation-ID', correlationId || '');
   
   next();
 };
