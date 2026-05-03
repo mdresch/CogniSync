@@ -23,7 +23,7 @@
     "neo4j-driver": "^5.28.1",
     "pino": "^9.9.0",
     "pino-pretty": "^13.1.1",
-    "uuid": "^11.1.0"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@apollo/rover": "^0.35.0",
