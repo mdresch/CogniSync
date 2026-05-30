@@ -48,7 +48,7 @@
     "@azure/service-bus": "^7.9.5",
     "@pinecone-database/pinecone": "^6.1.2",
     "@types/jsonwebtoken": "^9.0.10",
-    "axios": "^1.6.2",
+    "axios": "^1.16.1",
     "compression": "^1.7.4",
     "compromise": "^14.10.0",
     "cors": "^2.8.5",
